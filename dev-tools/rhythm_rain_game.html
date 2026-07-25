@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>雨之旋律 - 手绘节奏音游</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #121212;
+            font-family: 'Courier New', Courier, monospace, "Microsoft YaHei";
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            height: 100%;
+            max-height: 800px;
+            background-color: #f7f6f2; /* 宣纸质感的浅色背景 */
+            border: 3px solid #2b2b2b;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        /* UI 遮罩层基类 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(247, 246, 242, 0.96);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 30px;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+        }
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        h1 {
+            font-size: 2.2rem;
+            color: #222;
+            margin-bottom: 10px;
+            font-weight: normal;
+            letter-spacing: 6px;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+        /* 关卡选择列表 */
+        .level-select {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .level-item {
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            border: 2px dashed #444;
+            background: transparent;
+            font-size: 1.1rem;
+            color: #333;
+            cursor: pointer;
+            border-radius: 6px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .level-item:active, .level-item.selected {
+            background: #222;
+            color: #f7f6f2;
+            border-style: solid;
+        }
+        .level-desc {
+            font-size: 0.75rem;
+            display: block;
+            margin-top: 4px;
+            opacity: 0.8;
+        }
+        .btn-main {
+            padding: 14px 40px;
+            border: 2px solid #222;
+            background: transparent;
+            color: #222;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: inherit;
+            letter-spacing: 4px;
+            box-shadow: 3px 3px 0px #222;
+            transition: all 0.1s ease;
+        }
+        .btn-main:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px #222;
+        }
+        .btn-main:disabled {
+            opacity: 0.5;
+            border-color: #999;
+            color: #999;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        /* 顶部加载提示 */
+        #audio-status {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+        /* 结算界面样式 */
+        .stat-row {
+            font-size: 1.1rem;
+            color: #333;
+            margin: 8px 0;
+            width: 80%;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #ccc;
+            padding-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- 关卡/难度选择主界面 -->
+        <div id="menu-overlay" class="overlay">
+            <h1>雨之旋律</h1>
+            <div class="subtitle">—— 听雨，指尖破土的生机 ——</div>
+            
+            <div id="audio-status">正在加载治愈钢琴曲...</div>
+            
+            <div class="level-select">
+                <button class="level-item selected" onclick="selectLevel('easy', this)">
+                    第一乐章：春雨 (Easy)
+                    <span class="level-desc">微风细雨 · 下落慢 · 节奏舒缓</span>
+                </button>
+                <button class="level-item" onclick="selectLevel('normal', this)">
+                    第二乐章：暴雨 (Normal)
+                    <span class="level-desc">连绵不绝 · 下落快 · 节奏紧凑</span>
+                </button>
+                <button class="level-item" onclick="selectLevel('hard', this)">
+                    第三乐章：骤雨 (Hard)
+                    <span class="level-desc">狂风骤雨 · 极速下落 · 挑战指尖极限</span>
+                </button>
+            </div>
+            
+            <button class="btn-main" id="start-btn" disabled>加载中...</button>
+        </div>
+
+        <!-- 结算界面 -->
+        <div id="result-overlay" class="overlay hidden">
+            <h1 id="result-title">雨停了</h1>
+            <div class="subtitle" id="result-subtitle">植物灌溉成果总结</div>
+            
+            <div class="stat-row"><span>最终得分:</span><span id="res-score">0</span></div>
+            <div class="stat-row"><span>最高连击:</span><span id="res-combo">0</span></div>
+            <div class="stat-row"><span>完美率 (Perfect):</span><span id="res-perfect">0</span></div>
+            <div class="stat-row"><span>生长进度:</span><span id="res-growth">0%</span></div>
+            
+            <p id="res-eval" style="margin: 25px 0; color: #555; font-size:0.95rem; line-height:1.5;"></p>
+            
+            <button class="btn-main" onclick="backToMenu()">重返雨季</button>
+        </div>
+
+        <!-- 游戏核心画布 -->
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('game-container');
+
+// 初始化无版权背景音乐 (使用不卡顿的公开流媒体治愈系钢琴曲)
+const bgm = new Audio();
+bgm.src = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"; // 知识共享公共钢琴/轻音乐流
+bgm.loop = true;
+bgm.crossOrigin = "anonymous";
+
+// 监测音乐加载
+bgm.addEventListener('canplaythrough', () => {
+    const startBtn = document.getElementById('start-btn');
+    startBtn.disabled = false;
+    startBtn.innerText = "聆听并开始";
+    document.getElementById('audio-status').innerText = "🎵 音乐就绪，戴上耳机体验更佳";
+});
+
+bgm.addEventListener('error', () => {
+    // 容错处理：如果外部音频由于网络问题加载失败，允许直接静音启动游戏
+    const startBtn = document.getElementById('start-btn');
+    startBtn.disabled = false;
+    startBtn.innerText = "静音开始";
+    document.getElementById('audio-status').innerText = "⚠️ 乐曲加载略慢，可直接静音游玩";
+});
+
+// 关卡难度配置表
+const levels = {
+    easy: { dropSpeed: 200, spawnInterval: 1400, perfectRange: 35, goodRange: 65, growthRate: 5 },
+    normal: { dropSpeed: 320, spawnInterval: 800, perfectRange: 28, goodRange: 55, growthRate: 3.5 },
+    hard: { dropSpeed: 440, spawnInterval: 450, perfectRange: 22, goodRange: 45, growthRate: 2.2 }
+};
+
+// 游戏当前运行状态
+let currentLevel = 'easy';
+let gameState = 'MENU'; // MENU, PLAYING, RESULT
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let countPerfect = 0;
+let countTotalNotes = 0;
+let gameTimeLeft = 60; // 限定60秒一局
+let plantGrowth = 0;  // 0 到 100
+
+let raindrops = [];
+let lastTime = 0;
+let nextSpawnTime = 0;
+let feedbackText = "";
+let feedbackTimer = 0;
+let feedbackType = ""; // perfect, good, miss
+let shakeIntensity = 0; // 判定成功时的画面抖动
+
+// 轨道配置（改用多轨道提升音游操作感：左、中、右三条线）
+const tracksX = [0.22, 0.5, 0.78];
+
+function resizeCanvas() {
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width * window.devicePixelRatio;
+    canvas.height = rect.height * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+
+function selectLevel(lvl, element) {
+    if (gameState !== 'MENU') return;
+    currentLevel = lvl;
+    document.querySelectorAll('.level-item').forEach(btn => btn.classList.remove('selected'));
+    element.classList.add('selected');
+}
+
+// 模拟手绘风线条
+function drawHandDrawnLine(x1, y1, x2, y2, segments = 6, deviation = 1.5) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const dx = (x2 - x1) / segments;
+    const dy = (y2 - y1) / segments;
+    for (let i = 1; i < segments; i++) {
+        const cx = x1 + dx * i + (Math.random() - 0.5) * deviation;
+        const cy = y1 + dy * i + (Math.random() - 0.5) * deviation;
+        ctx.lineTo(cx, cy);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+}
+
+// 绘制手绘风泪滴状雨滴
+function drawRaindrop(x, y) {
+    ctx.strokeStyle = '#2b2b2b';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 16);
+    ctx.quadraticCurveTo(x + 5, y + 4, x, y + 12);
+    ctx.quadraticCurveTo(x - 5, y + 4, x, y - 16);
+    ctx.fillStyle = 'rgba(43, 43, 43, 0.08)';
+    ctx.fill();
+    ctx.stroke();
+}
+
+// 绘制多阶段手绘风植物
+function drawPlant(x, y, growth) {
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    
+    if (growth < 1) {
+        // 种子埋在土里，只画一个小土堆轮廓
+        ctx.beginPath();
+        ctx.arc(x, y + 3, 10, Math.PI, 0);
+        ctx.stroke();
+    } else if (growth < 25) {
+        // 种子破壳，露出一丁点儿芽尖
+        drawHandDrawnLine(x - 8, y, x + 8, y, 2, 0.5);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + 3, y - 6, x + 1, y - 12);
+        ctx.stroke();
+    } else if (growth < 60) {
+        // 幼苗阶段，长出主茎和第一片手绘叶子
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x - 4, y - 15, x - 1, y - 32); 
+        ctx.stroke();
+        // 绘制一片饱满的线条叶子
+        ctx.beginPath();
+        ctx.moveTo(x - 1, y - 32);
+        ctx.quadraticCurveTo(x - 14, y - 36, x - 11, y - 22);
+        ctx.quadraticCurveTo(x - 1, y - 24, x - 1, y - 32);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fill();
+        ctx.stroke();
+    } else {
+        // 茂盛阶段：长高，并生出左右双向叶片，甚至顶端开出线条小花
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + 4, y - 25, x, y - 55); // 主干
+        ctx.stroke();
+        
+        // 左边叶子
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 22);
+        ctx.quadraticCurveTo(x - 16, y - 28, x - 12, y - 14);
+        ctx.quadraticCurveTo(x + 2, y - 16, x + 2, y - 22);
+        ctx.fill(); ctx.stroke();
+        
+        // 右边高级小叶片
+        ctx.beginPath();
+        ctx.moveTo(x + 1, y - 40);
+        ctx.quadraticCurveTo(x + 15, y - 46, x + 12, y - 32);
+        ctx.quadraticCurveTo(x + 1, y - 34, x + 1, y - 40);
+        ctx.fill(); ctx.stroke();
+        
+        // 100% 满状态时在顶端开出一朵手绘风蒲公英/小花
+        if (growth >= 100) {
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 6; i++) {
+                let angle = (Math.PI * 2 / 6) * i;
+                let fx = x + Math.cos(angle) * 12;
+                let fy = (y - 55) + Math.sin(angle) * 12;
+                drawHandDrawnLine(x, y - 55, fx, fy, 2, 1);
+            }
+        }
+    }
+}
+
+// 主游戏动力循环
+function gameLoop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+
+    const width = canvas.width / window.devicePixelRatio;
+    const height = canvas.height / window.devicePixelRatio;
+    
+    // 判定线高度定在屏幕 78% 处
+    const lineY = height * 0.78;
+    const currentCfg = levels[currentLevel];
+
+    // 全局清除画布
+    ctx.clearRect(0, 0, width, height);
+
+    // 震屏动画特效计算
+    ctx.save();
+    if (shakeIntensity > 0) {
+        const dx = (Math.random() - 0.5) * shakeIntensity;
+        const dy = (Math.random() - 0.5) * shakeIntensity;
+        ctx.translate(dx, dy);
+        shakeIntensity *= 0.88; // 逐渐衰减
+        if (shakeIntensity < 0.5) shakeIntensity = 0;
+    }
+
+    if (gameState === 'PLAYING') {
+        // 1. 倒计时减少机制
+        gameTimeLeft -= dt;
+        if (gameTimeLeft <= 0) {
+            gameTimeLeft = 0;
+            endGame();
+        }
+
+        // 2. 依照所选关卡的节拍密度自动生成雨滴
+        if (timestamp > nextSpawnTime) {
+            // 随机从左、中、右三条轨道之一落下来
+            const trackIndex = Math.floor(Math.random() * tracksX.length);
+            const dropX = width * tracksX[trackIndex];
+            raindrops.push({ x: dropX, y: -25, hit: false, track: trackIndex });
+            
+            // 下一个音符的节拍点（混入轻微随机抖动，创造出更像手弦音乐的自然切分音）
+            nextSpawnTime = timestamp + currentCfg.spawnInterval * (Math.random() * 0.3 + 0.85);
+        }
+
+        // 3. 实时移动和滑落雨滴
+        raindrops.forEach(drop => {
+            drop.y += currentCfg.dropSpeed * dt;
+            
+            // 超过判定线过远（漏接判定 Miss）
+            if (!drop.hit && drop.y > lineY + currentCfg.goodRange) {
+                drop.hit = true;
+                combo = 0; // 连击中断
+                feedbackText = "MISS";
+                feedbackType = "miss";
+                feedbackTimer = 0.4;
+            }
+        });
+
+        // 清理飞出可见区域的冗余雨滴
+        raindrops = raindrops.filter(drop => drop.y < height + 30);
+    }
+
+    // --- 视觉绘制渲染层 ---
+
+    // 背景手绘白噪音细雨流线
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.03)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+        let rx = (width / 4) * i + 35;
+        drawHandDrawnLine(rx, 0, rx - 12, height, 2, 4);
+    }
+
+    // 绘制3条独立的垂直节奏演奏轨道
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
+    ctx.lineWidth = 1.5;
+    tracksX.forEach(tx => {
+        drawHandDrawnLine(width * tx, 0, width * tx, lineY, 8, 0.8);
+    });
+
+    // 绘制手绘核心判定横线
+    ctx.strokeStyle = '#2b2b2b';
+    ctx.lineWidth = 3.5;
+    drawHandDrawnLine(15, lineY, width - 15, lineY, 7, 2);
+
+    // 绘制大地水平线
+    ctx.lineWidth = 2;
+    drawHandDrawnLine(0, height - 50, width, height - 50, 4, 0.8);
+
+    // 实时绘制成长中的手绘植物
+    drawPlant(width / 2, height - 50, plantGrowth);
+
+    // 渲染存活雨滴
+    raindrops.forEach(drop => {
+        if (!drop.hit) {
+            drawRaindrop(drop.x, drop.y);
+        }
+    });
+
+    // 恢复画布状态（确保UI文字及时间条不跟着震动）
+    ctx.restore();
+
+    // 4. 实时绘制上方游戏运行状态 UI
+    if (gameState === 'PLAYING') {
+        ctx.fillStyle = '#2b2b2b';
+        ctx.font = 'bold 15px "Courier New"';
+        ctx.textAlign = 'left';
+        ctx.fillText(`水分: ${score}`, 25, 45);
+        
+        ctx.textAlign = 'right';
+        ctx.fillText(`成长: ${Math.floor(plantGrowth)}%`, width - 25, 45);
+
+        // 绘制顶端手绘沙漏风格的“倒计时进度条”
+        const timerBarWidth = width - 50;
+        ctx.strokeStyle = '#2b2b2b';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(25, 60, timerBarWidth, 6);
+        // 计算剩余时间填色
+        const progress = gameTimeLeft / 60;
+        ctx.fillStyle = '#2b2b2b';
+        ctx.fillRect(25, 61, timerBarWidth * progress, 4);
+
+        // 绘制连击数 (Combo)
+        if (combo >= 2) {
+            ctx.textAlign = 'center';
+            ctx.font = 'italic bold 22px "Courier New"';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillText(`${combo} COMBO`, width / 2, height * 0.3);
+        }
+    }
+
+    // 5. 渲染 Perfect / Good 反馈特效文字
+    if (feedbackTimer > 0 && gameState === 'PLAYING') {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 26px "Courier New"';
+        
+        if (feedbackType === 'perfect') {
+            ctx.fillStyle = '#111111';
+        } else if (feedbackType === 'good') {
+            ctx.fillStyle = '#555555';
+        } else {
+            ctx.fillStyle = '#999999'; // Miss 呈现淡淡的灰色
+        }
+        
+        // 浮动往上的微弱动画感
+        const textY = lineY - 55 - (0.4 - feedbackTimer) * 30;
+        ctx.fillText(feedbackText, width / 2, textY);
+        ctx.restore();
+        
+        feedbackTimer -= dt;
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// 触摸与鼠标按键核心判定
+function handleInput(e) {
+    if (gameState !== 'PLAYING') return;
+    e.preventDefault();
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clickX = clientX - rect.left;
+
+    const width = rect.width;
+    const height = rect.height;
+    const logicalWidth = canvas.width / window.devicePixelRatio;
+    const logicalHeight = canvas.height / window.devicePixelRatio;
+    
+    const lineY = logicalHeight * 0.78;
+    const currentCfg = levels[currentLevel];
+
+    // 找出距离判定线最近，且处于玩家点击那一侧轨道的雨滴
+    let closestDrop = null;
+    let minDistance = Infinity;
+
+    // 将屏幕分成三等份触摸区，对应左中右三条轨道
+    let clickedTrack = 0;
+    if (clickX > width * 0.38 && clickX <= width * 0.62) clickedTrack = 1;
+    else if (clickX > width * 0.62) clickedTrack = 2;
+
+    raindrops.forEach(drop => {
+        if (!drop.hit && drop.track === clickedTrack) {
+            const dist = Math.abs(drop.y - lineY);
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestDrop = drop;
+            }
+        }
+    });
+
+    // 如果在该轨道找到了符合判定范围的雨滴
+    if (closestDrop && minDistance < currentCfg.goodRange) {
+        closestDrop.hit = true;
+        countTotalNotes++;
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+
+        if (minDistance <= currentCfg.perfectRange) {
+            feedbackText = "PERFECT";
+            feedbackType = "perfect";
+            score += 3;
+            countPerfect++;
+            plantGrowth = Math.min(100, plantGrowth + currentCfg.growthRate);
+            shakeIntensity = 5; // 触发完美撞击屏幕颤抖
+        } else {
+            feedbackText = "GOOD";
+            feedbackType = "good";
+            score += 1;
+            plantGrowth = Math.min(100, plantGrowth + (currentCfg.growthRate * 0.5));
+            shakeIntensity = 2;
+        }
+        feedbackTimer = 0.4;
+    } else {
+        // 空点或者距离过远视为 Miss
+        combo = 0;
+        feedbackText = "MISS";
+        feedbackType = "miss";
+        feedbackTimer = 0.3;
+    }
+}
+
+// 启动游戏
+document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('menu-overlay').classList.add('hidden');
+    
+    // 初始化各项状态
+    score = 0;
+    combo = 0;
+    maxCombo = 0;
+    countPerfect = 0;
+    countTotalNotes = 0;
+    gameTimeLeft = 60; // 60秒
+    plantGrowth = 0;
+    raindrops = [];
+    
+    gameState = 'PLAYING';
+    nextSpawnTime = performance.now() + 400;
+    
+    // 自动播放无版权优美乐曲
+    bgm.currentTime = 0;
+    bgm.play().catch(err => {
+        console.log("音频播放受浏览器策略限制，已切换至无声兼容模式");
+    });
+});
+
+// 终止结算游戏
+function endGame() {
+    gameState = 'RESULT';
+    bgm.pause();
+
+    // 渲染结算面板信息
+    document.getElementById('res-score').innerText = score;
+    document.getElementById('res-combo').innerText = maxCombo;
+    
+    const perfectRate = countTotalNotes > 0 ? Math.round((countPerfect / countTotalNotes) * 100) : 0;
+    document.getElementById('res-perfect').innerText = perfectRate + "%";
+    document.getElementById('res-growth').innerText = Math.floor(plantGrowth) + "%";
+
+    // 动态评价语
+    let evaluation = "";
+    if (plantGrowth >= 100) {
+        evaluation = "绝赞！雨滴完美交织，你用无暇的节奏灌溉出了一朵盛开的手绘蒲公英，在雨后的微风里摇曳。";
+    } else if (plantGrowth >= 60) {
+        evaluation = "做得很棒！种子在你的照料下，已经成功破土并绽放出两片饱满的嫩叶，它在期待下一场甘霖。";
+    } else if (plantGrowth >= 20) {
+        evaluation = "初显生机。种子虽然勉强破壳探出了小脑袋，但由于雨滴流失较多，还需要多加练习来滋润它哦。";
+    } else {
+        evaluation = "雨势连绵，但似乎错过了很多节奏。种子依然在干涸的土壤里沉睡，换一首舒缓的曲子再试一次吧！";
+    }
+    document.getElementById('res-eval').innerText = evaluation;
+
+    document.getElementById('result-overlay').classList.remove('hidden');
+}
+
+// 回到主菜单
+function backToMenu() {
+    document.getElementById('result-overlay').classList.add('hidden');
+    document.getElementById('menu-overlay').classList.remove('hidden');
+    gameState = 'MENU';
+}
+
+// 事件绑定
+canvas.addEventListener('touchstart', handleInput, { passive: false });
+canvas.addEventListener('mousedown', handleInput);
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

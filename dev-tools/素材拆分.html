@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q版素材智能拆分工具 (增强版)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h1 { text-align: center; color: #4a5568; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #718096; margin-bottom: 25px; }
+        
+        /* 控制面板 */
+        .control-panel {
+            background: #edf2f7;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 14px;
+        }
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .switch-container input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* 拖拽区域 */
+        #drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #718096;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8fafc;
+        }
+        #drop-zone:hover, #drop-zone.dragover {
+            border-color: #4299e1;
+            background: #ebf8ff;
+            color: #2b6cb0;
+        }
+        
+        /* 预览区域 */
+        #result-section { margin-top: 30px; display: none; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .sprite-card {
+            background: #edf2f7;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), 
+                              linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #e2e8f0 75%), 
+                              linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+        }
+        .sprite-card img {
+            max-width: 100%;
+            max-height: 110px;
+            object-fit: contain;
+        }
+        .btn {
+            display: block;
+            width: 220px;
+            margin: 20px auto 0;
+            padding: 12px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+        }
+        .btn:hover { background: #3182ce; }
+        #hidden-canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎨 Q版素材智能拆分工具</h1>
+    <div class="subtitle">智能识别非白区域并抠除背景，一键导出换装组件</div>
+    
+    <div class="control-panel">
+        <label class="switch-container">
+            <input type="checkbox" id="filter-text-toggle" checked>
+            开启智能文本过滤（自动识别并抹除底部的文字标签）
+        </label>
+        <span style="color: #718096; font-size: 12px;">*(建议保持开启，能大幅提升切图精准度)*</span>
+    </div>
+
+    <div id="drop-zone">
+        <p style="font-size: 18px; margin-bottom: 5px;">🔥 拖拽图片到这里，或点击选择图片</p>
+        <p style="font-size: 14px; color:#a0aec0;">支持 PNG, JPG, JPEG</p>
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+    </div>
+
+    <div id="result-section">
+        <h3 id="count-title">识别到素材 (0)</h3>
+        <div class="grid" id="sprite-grid"></div>
+        <button class="btn" id="download-all-btn">下载全部素材</button>
+    </div>
+</div>
+
+<canvas id="hidden-canvas"></canvas>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const resultSection = document.getElementById('result-section');
+    const spriteGrid = document.getElementById('sprite-grid');
+    const countTitle = document.getElementById('count-title');
+    const downloadAllBtn = document.getElementById('download-all-btn');
+    const filterTextToggle = document.getElementById('filter-text-toggle');
+    const canvas = document.getElementById('hidden-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let currentImgElement = null; // 缓存当前图片对象以便切换开关时重新计算
+    let croppedImages = []; 
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    
+    // 监听开关切换，实时重新处理图片
+    filterTextToggle.addEventListener('change', () => {
+        if (currentImgElement) processImage(currentImgElement);
+    });
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                currentImgElement = img;
+                processImage(img);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 判断是否为白色背景
+    function isBackground(r, g, b) {
+        return r > 245 && g > 245 && b > 245;
+    }
+
+    function processImage(img) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let data = imgData.data;
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // --- 核心优化：文本预过滤与擦除模块 ---
+        if (filterTextToggle.checked) {
+            const visitedForText = new Uint8Array(width * height);
+            const textRects = [];
+
+            // 第一步：初步使用连通域探测所有独立的像素堆
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x);
+                    if (visitedForText[idx] || isBackground(data[idx*4], data[idx*4+1], data[idx*4+2])) continue;
+
+                    let minX = x, maxX = x, minY = y, maxY = y;
+                    const queue = [[x, y]];
+                    visitedForText[idx] = 1;
+
+                    while (queue.length > 0) {
+                        const [cx, cy] = queue.shift();
+                        const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
+                        for (const [dx, dy] of dirs) {
+                            const nx = cx + dx;
+                            const ny = cy + dy;
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const nIdx = ny * width + nx;
+                                if (!visitedForText[nIdx] && !isBackground(data[nIdx*4], data[nIdx*4+1], data[nIdx*4+2])) {
+                                    visitedForText[nIdx] = 1;
+                                    queue.push([nx, ny]);
+                                    if (nx < minX) minX = nx;
+                                    if (nx > maxX) maxX = nx;
+                                    if (ny < minY) minY = ny;
+                                    if (ny > maxY) maxY = ny;
+                                }
+                            }
+                        }
+                    }
+
+                    const w = maxX - minX + 1;
+                    const h = maxY - minY + 1;
+                    
+                    // 【文本特征过滤筛选器】
+                    // 规律分析：普通的标签文字高度通常在 12px ~ 28px 之间。
+                    // 并且文字一般呈扁平状（如“五官”、“可选配件”），高度很少会超过 35px。
+                    if (h >= 8 && h <= 35 && w > 10) {
+                        textRects.push({ x: minX, y: minY, w: w, h: h });
+                    }
+                }
+            }
+
+            // 第二步：内存涂白擦除。将筛出来的文本区域在 canvas 上抹除为纯白背景
+            textRects.forEach(rect => {
+                ctx.fillStyle = '#FFFFFF';
+                // 稍微向外扩大1-2个像素确保擦除干净
+                ctx.fillRect(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2);
+            });
+
+            // 重新刷新擦除文本后的图像像素数据，进入后续的素材拆分流程
+            imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            data = imgData.data;
+        }
+
+
+        // --- 第二步：正式拆分核心组件素材 ---
+        const visited = new Uint8Array(width * height);
+        const rects = [];
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x);
+                if (visited[idx] || isBackground(data[idx*4], data[idx*4+1], data[idx*4+2])) continue;
+
+                let minX = x, maxX = x, minY = y, maxY = y;
+                const queue = [[x, y]];
+                visited[idx] = 1;
+
+                while (queue.length > 0) {
+                    const [cx, cy] = queue.shift();
+                    const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
+                    for (const [dx, dy] of dirs) {
+                        const nx = cx + dx;
+                        const ny = cy + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                            const nIdx = ny * width + nx;
+                            if (!visited[nIdx] && !isBackground(data[nIdx*4], data[nIdx*4+1], data[nIdx*4+2])) {
+                                visited[nIdx] = 1;
+                                queue.push([nx, ny]);
+                                if (nx < minX) minX = nx;
+                                if (nx > maxX) maxX = nx;
+                                if (ny < minY) minY = ny;
+                                if (ny > maxY) maxY = ny;
+                            }
+                        }
+                    }
+                }
+
+                const w = maxX - minX + 1;
+                const h = maxY - minY + 1;
+
+                // 过滤微小噪点
+                if (w > 15 && h > 15) {
+                    rects.push({ x: minX, y: minY, w: w, h: h });
+                }
+            }
+        }
+
+        // --- 第三步：渲染输出透明 PNG 缩略图 ---
+        spriteGrid.innerHTML = '';
+        croppedImages = [];
+
+        rects.forEach((rect, index) => {
+            const tempCanvas = document.createElement('canvas');
+            const padding = 2; 
+            tempCanvas.width = rect.w + padding * 2;
+            tempCanvas.height = rect.h + padding * 2;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const spriteData = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+            const sData = spriteData.data;
+
+            // 将残留的纯白底像素彻底透明化 (Alpha = 0)
+            for (let i = 0; i < sData.length; i += 4) {
+                if (isBackground(sData[i], sData[i+1], sData[i+2])) {
+                    sData[i + 3] = 0; 
+                }
+            }
+
+            tempCtx.putImageData(spriteData, padding, padding);
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            croppedImages.push(dataUrl);
+
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.innerHTML = `
+                <img src="${dataUrl}" alt="组件 ${index}">
+                <div style="font-size:12px;color:#718096;margin-top:5px;">组件_${index+1} (${rect.w}×${rect.h})</div>
+            `;
+            spriteGrid.appendChild(card);
+        });
+
+        countTitle.innerText = `识别到有效组件：共 ${rects.length} 个（已自动净化文本区域）`;
+        resultSection.style.display = 'block';
+    }
+
+    // 一键打包下载
+    downloadAllBtn.addEventListener('click', () => {
+        if (croppedImages.length === 0) return;
+        croppedImages.forEach((dataUrl, index) => {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `asset_part_${String(index+1).padStart(2, '0')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q版素材智能拆分工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h1 { text-align: center; color: #4a5568; }
+        
+        /* 拖拽区域 */
+        #drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #718096;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8fafc;
+        }
+        #drop-zone:hover, #drop-zone.dragover {
+            border-color: #4299e1;
+            background: #ebf8ff;
+            color: #2b6cb0;
+        }
+        
+        /* 预览区域 */
+        #result-section { margin-top: 30px; display: none; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .sprite-card {
+            background: #edf2f7;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            /* 棋盘格背景，用于展示透明PNG */
+            background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), 
+                              linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #e2e8f0 75%), 
+                              linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 10px 10px;
+            background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+        }
+        .sprite-card img {
+            max-width: 100%;
+            max-height: 100px;
+            object-fit: contain;
+        }
+        .btn {
+            display: block;
+            width: 200px;
+            margin: 20px auto 0;
+            padding: 12px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+        }
+        .btn:hover { background: #3182ce; }
+        #hidden-canvas { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎨 Q版素材智能拆分工具</h1>
+    <p style="text-align:center; color:#718096;">将包含多个换装组件的白色背景图拖入下方，自动切分为透明 PNG 单图</p>
+    
+    <div id="drop-zone">
+        <p style="font-size: 18px; margin-bottom: 5px;">🔥 拖拽图片到这里，或点击选择图片</p>
+        <p style="font-size: 14px; color:#a0aec0;">支持 PNG, JPG, JPEG</p>
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+    </div>
+
+    <div id="result-section">
+        <h3 id="count-title">识别到素材 (0)</h3>
+        <div class="grid" id="sprite-grid"></div>
+        <button class="btn" id="download-all-btn">下载全部素材</button>
+    </div>
+</div>
+
+<canvas id="hidden-canvas"></canvas>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const resultSection = document.getElementById('result-section');
+    const spriteGrid = document.getElementById('sprite-grid');
+    const countTitle = document.getElementById('count-title');
+    const downloadAllBtn = document.getElementById('download-all-btn');
+    const canvas = document.getElementById('hidden-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let croppedImages = []; // 存储裁剪出来的base64图片数据
+
+    // --- 事件监听：触发文件选择 ---
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    
+    // --- 拖拽交互处理 ---
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // --- 主处理逻辑 ---
+    function handleFile(file) {
+        if (!file || !file.type.startsWith('image/')) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                processImage(img);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function processImage(img) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // 1. 建立二维访问标记数组 (Visited)
+        const visited = new Uint8Array(width * height);
+        const rects = [];
+
+        // 阈值定义：接近白色的判定为背景 (RGB都大于245)
+        function isBackground(r, g, b) {
+            return r > 245 && g > 245 && b > 245;
+        }
+
+        // 2. 泛洪/连通域算法 (BFS) 寻找非白色的素材聚类
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x);
+                if (visited[idx]) continue;
+
+                const r = data[idx * 4];
+                const g = data[idx * 4 + 1];
+                const b = data[idx * 4 + 2];
+
+                // 如果发现非背景像素，说明找到了一个新素材的起点
+                if (!isBackground(r, g, b)) {
+                    // 开始 BFS 探测这个素材的边界框
+                    let minX = x, maxX = x, minY = y, maxY = y;
+                    const queue = [[x, y]];
+                    visited[idx] = 1;
+
+                    while (queue.length > 0) {
+                        const [cx, cy] = queue.shift();
+
+                        // 检查 4 个方向邻域像素
+                        const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
+                        for (const [dx, dy] of dirs) {
+                            const nx = cx + dx;
+                            const ny = cy + dy;
+
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const nIdx = ny * width + nx;
+                                if (!visited[nIdx]) {
+                                    const nr = data[nIdx * 4];
+                                    const ng = data[nIdx * 4 + 1];
+                                    const nb = data[nIdx * 4 + 2];
+
+                                    if (!isBackground(nr, ng, nb)) {
+                                        visited[nIdx] = 1;
+                                        queue.push([nx, ny]);
+                                        
+                                        // 更新边界矩形
+                                        if (nx < minX) minX = nx;
+                                        if (nx > maxX) maxX = nx;
+                                        if (ny < minY) minY = ny;
+                                        if (ny > maxY) maxY = ny;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    const w = maxX - minX + 1;
+                    const h = maxY - minY + 1;
+
+                    // 过滤过小的噪点（如文字、句号、小的杂色块）
+                    if (w > 20 && h > 20) {
+                        rects.push({ x: minX, y: minY, w: w, h: h });
+                    }
+                }
+            }
+        }
+
+        // 3. 提取并生成带有“透明背景”的切图
+        spriteGrid.innerHTML = '';
+        croppedImages = [];
+
+        rects.forEach((rect, index) => {
+            // 创建一个临时小画布用于存放裁剪下来的单张素材
+            const tempCanvas = document.createElement('canvas');
+            const padding = 4; // 适当加一点留白
+            tempCanvas.width = rect.w + padding * 2;
+            tempCanvas.height = rect.h + padding * 2;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // 从原大图获取该区域的像素数据
+            const spriteData = ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+            const sData = spriteData.data;
+
+            // 核心抠图：将单张素材里原图是“白色”的像素的 Alpha 通道设为 0（透明）
+            for (let i = 0; i < sData.length; i += 4) {
+                if (isBackground(sData[i], sData[i+1], sData[i+2])) {
+                    sData[i + 3] = 0; // 设置为全透明
+                }
+            }
+
+            // 将处理为透明的像素画入小画布中心位置
+            tempCtx.putImageData(spriteData, padding, padding);
+
+            // 转为 base64
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            croppedImages.push(dataUrl);
+
+            // 渲染到网页预览区
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.innerHTML = `
+                <img src="${dataUrl}" alt="素材 ${index}">
+                <div style="font-size:12px;color:#718096;margin-top:5px;">${rect.w} × ${rect.h}</div>
+            `;
+            spriteGrid.appendChild(card);
+        });
+
+        // 4. 显示结果区域
+        countTitle.innerText = `成功识别并抠图：共 ${rects.length} 个独立素材`;
+        resultSection.style.display = 'block';
+    }
+
+    // --- 一键下载全部素材 ---
+    downloadAllBtn.addEventListener('click', () => {
+        if (croppedImages.length === 0) return;
+        
+        croppedImages.forEach((dataUrl, index) => {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `avatar_sprite_${String(index).padStart(2, '0')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    });
+</script>
+
+</body>
+</html>

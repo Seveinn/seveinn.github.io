@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>拼图切割器</title>
+    <link rel="stylesheet" href="cutter.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1>拼图切割器</h1>
+        <p class="subtitle">
+          一张图源可保存多个拼图配置：在原图上框选区域，设置行列均分，分别导出 JSON 与 PNG 切片
+        </p>
+      </header>
+
+      <section class="panel controls">
+        <div class="control-group">
+          <label class="label" for="fileInput">源图片</label>
+          <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="拖放或选择图片">
+            <input id="fileInput" type="file" accept="image/*" hidden />
+            <p class="drop-hint">拖放图片到此处，或点击选择文件</p>
+            <p id="fileName" class="file-name"></p>
+          </div>
+        </div>
+
+        <div class="control-row region-row">
+          <div class="control-group region-inputs-group">
+            <span class="label">选区（像素）</span>
+            <div class="region-inputs">
+              <label>X <input id="regionX" type="number" min="0" value="0" /></label>
+              <label>Y <input id="regionY" type="number" min="0" value="0" /></label>
+              <label>宽 <input id="regionW" type="number" min="1" value="1" /></label>
+              <label>高 <input id="regionH" type="number" min="1" value="1" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-group">
+            <label class="label" for="configNameInput">配置名称</label>
+            <input
+              id="configNameInput"
+              type="text"
+              class="text-input"
+              placeholder="如 hero、campfire、row1-characters"
+            />
+          </div>
+          <div class="control-group">
+            <label class="label" for="rowsInput">行数</label>
+            <input id="rowsInput" type="number" min="1" max="20" value="3" />
+          </div>
+          <div class="control-group">
+            <label class="label" for="colsInput">列数</label>
+            <input id="colsInput" type="number" min="1" max="20" value="3" />
+          </div>
+          <div class="control-group presets">
+            <span class="label">快捷</span>
+            <div class="preset-btns">
+              <button type="button" data-rows="1" data-cols="4">1×4</button>
+              <button type="button" data-rows="2" data-cols="2">2×2</button>
+              <button type="button" data-rows="3" data-cols="3">3×3</button>
+              <button type="button" data-rows="4" data-cols="4">4×4</button>
+              <button type="button" data-rows="3" data-cols="4">3×4</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-row options">
+          <label class="checkbox">
+            <input id="paddingInput" type="checkbox" />
+            <span>切片间留 2px 间隙（便于预览区分）</span>
+          </label>
+          <label class="checkbox">
+            <input id="numberOverlayInput" type="checkbox" checked />
+            <span>预览显示编号</span>
+          </label>
+          <label class="checkbox">
+            <input id="stripDataUrlInput" type="checkbox" checked />
+            <span>导出不含 base64（推荐：由游戏内源图路径运行时切片）</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="exportJsonBtn" type="button" disabled>导出当前 JSON</button>
+          <button id="exportPngBtn" type="button" disabled>导出当前 PNG 切片</button>
+          <button id="exportAllBtn" type="button" disabled>导出全部 JSON</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="preview-panel panel source-preview-panel" id="sourcePreviewPanel">
+          <div class="preview-head">
+            <h2>原图预览 <span class="panel-tip" id="canvasModeTip">先选择创建或编辑选区模式</span></h2>
+            <div class="preview-head-actions">
+              <button id="cutBtn" type="button" class="primary" disabled>切割预览</button>
+              <button id="fullscreenPreviewBtn" type="button" class="ghost-btn" disabled aria-pressed="false">全屏预览</button>
+            </div>
+          </div>
+          <div class="region-float-bar" id="regionFloatBar" aria-label="选区操作">
+            <button
+              type="button"
+              id="regionFloatDrag"
+              class="region-float-drag"
+              aria-label="拖动工具条"
+              title="拖动工具条"
+              disabled
+            >
+              ⠿
+            </button>
+            <button id="createRegionBtn" type="button" class="mode-btn" disabled>创建</button>
+            <button id="editRegionBtn" type="button" class="mode-btn" disabled>编辑</button>
+            <button id="applyRegionBtn" type="button" disabled>应用</button>
+            <button id="cancelRegionBtn" type="button" disabled>取消</button>
+            <button id="resetRegionBtn" type="button" disabled>整图</button>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <div class="canvas-stage" id="canvasStage">
+              <canvas id="sourceCanvas"></canvas>
+            </div>
+            <p id="regionModeStatus" class="meta region-mode-status">选区模式：待机</p>
+            <p id="sourceMeta" class="meta">尚未加载图片</p>
+          </div>
+        </div>
+
+        <div class="preview-panel panel pieces-preview-panel">
+          <div class="preview-head">
+            <h2>切割结果</h2>
+            <div class="preview-head-actions">
+              <button id="saveConfigBtn" type="button" disabled>保存到配置列表</button>
+              <button id="fullscreenPiecesBtn" type="button" class="ghost-btn" disabled aria-pressed="false">全屏预览</button>
+            </div>
+          </div>
+          <div class="pieces-wrap">
+            <div class="pieces-stage" id="piecesStage">
+              <div id="piecesGrid" class="pieces-grid empty">
+                <p class="placeholder">加载图片并点击「切割预览」</p>
+              </div>
+            </div>
+            <p id="piecesMeta" class="meta"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel config-panel">
+        <div class="config-head">
+          <div class="config-head-text">
+            <h2>拼图配置列表</h2>
+            <p class="hint" id="configSelectionHint">勾选多项后可合并导出为一个 JSON</p>
+          </div>
+          <div class="config-toolbar">
+            <button id="selectAllConfigsBtn" type="button" disabled>全选</button>
+            <button id="clearSelectionBtn" type="button" disabled>取消全选</button>
+            <button id="exportSelectedBundleBtn" type="button" disabled>导出选中合并 JSON</button>
+          </div>
+        </div>
+        <ul id="configList" class="config-list empty">
+          <li class="config-empty">暂无配置。框选区域并切割后，点击「保存到配置列表」</li>
+        </ul>
+      </section>
+
+      <section class="panel export-info">
+        <h2>导出格式说明</h2>
+        <p>
+          <strong>JSON v2</strong> 中 <code>source.path</code> 固定为空字符串，仅保留
+          <code>width</code> / <code>height</code>。图源路径在游戏项目
+          <code>puzzle-configs.js</code> 的 <code>sourceImage</code> 中配置。
+        </p>
+        <p>
+          <strong>合并 JSON（bundle）</strong> 勾选多个配置后导出为一个文件，共享顶层
+          <code>source</code>，<code>configs[]</code> 内每项为独立拼图配置。
+        </p>
+        <p>
+          <strong>PNG 切片</strong> 可选导出；若 JSON 不含 base64，游戏会从
+          <code>sourceImage</code> 按坐标实时切图。
+        </p>
+        <pre id="jsonPreview" class="json-preview" aria-label="JSON 结构预览"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="cutter.js"></script>
+  </body>
+</html>

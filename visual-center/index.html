@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="system">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Skills 可视化中心</title>
+  <link rel="stylesheet" href="vendor/syntax-github.min.css" id="hljs-light">
+  <link rel="stylesheet" href="vendor/syntax-github-dark.min.css" id="hljs-dark" disabled>
+  <link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-preview">跳到主内容</a>
+
+  <header class="topbar" role="banner">
+    <div class="topbar__brand">
+      <button type="button" class="icon-btn drawer-toggle" id="nav-toggle" aria-controls="sidebar-nav" aria-expanded="false" aria-label="打开内容导航">
+        <span aria-hidden="true">☰</span>
+      </button>
+      <h1 class="topbar__title">AI Skills 可视化中心</h1>
+    </div>
+
+    <div class="topbar__search" role="search">
+      <label class="sr-only" for="global-search">搜索文档</label>
+      <input type="search" id="global-search" placeholder="搜索文档…" autocomplete="off" aria-controls="search-results" aria-expanded="false">
+      <div id="search-results" class="search-results" role="listbox" hidden></div>
+    </div>
+
+    <div class="topbar__actions">
+      <label class="theme-picker">
+        <span class="sr-only">主题</span>
+        <select id="theme-select" aria-label="主题">
+          <option value="system">跟随系统</option>
+          <option value="light">亮色</option>
+          <option value="dark">暗色</option>
+        </select>
+      </label>
+      <button type="button" class="text-btn" id="open-external" hidden>在新页打开</button>
+      <button type="button" class="icon-btn" id="help-btn" aria-haspopup="dialog" aria-controls="help-dialog" aria-label="帮助">?</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar sidebar--nav" id="sidebar-nav" aria-label="内容导航">
+      <div class="sidebar__head">内容导航</div>
+      <nav id="nav-tree" class="nav-tree" tabindex="0"></nav>
+    </aside>
+
+    <main class="main" id="main-preview" tabindex="-1">
+      <div class="content-toolbar" id="content-toolbar" hidden>
+        <div class="content-toolbar__meta">
+          <h2 class="content-toolbar__title" id="content-title"></h2>
+          <p class="content-toolbar__path" id="content-path"></p>
+        </div>
+        <div class="content-toolbar__actions" id="content-actions"></div>
+      </div>
+      <div class="preview-stage" id="preview-stage">
+        <div class="welcome" id="welcome-panel">
+          <p class="welcome__eyebrow">本地知识库与工具工作台</p>
+          <h2>从左侧选择文档或开发工具</h2>
+          <p>全程在本机运行。文档支持目录与搜索；工具可页内运行或在新标签页打开。</p>
+          <ul class="welcome__tips">
+            <li>按 <kbd>F12</kbd> 可打开浏览器开发者工具</li>
+            <li>关闭启动窗口即可停止本地服务</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+
+    <aside class="sidebar sidebar--toc" id="sidebar-toc" aria-label="页面目录" hidden>
+      <div class="sidebar__head">
+        <span>页面目录</span>
+        <button type="button" class="icon-btn drawer-toggle" id="toc-toggle-close" aria-label="关闭目录" hidden>
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <nav id="toc-nav" class="toc-nav"></nav>
+    </aside>
+  </div>
+
+  <button type="button" class="fab-toc" id="toc-toggle" hidden aria-controls="sidebar-toc" aria-expanded="false" aria-label="打开页面目录">目录</button>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title">
+    <form method="dialog">
+      <h2 id="help-title">使用说明</h2>
+      <ul>
+        <li>推荐双击 <code>start-visual-center.bat</code>（或 <code>打开可视化中心.bat</code>）启动本地服务。</li>
+        <li>左侧浏览 Markdown 文档与 HTML 开发工具。</li>
+        <li>工具默认页内运行；若不兼容可点「在新页打开」。</li>
+        <li>浏览器开发者工具请按 <kbd>F12</kbd> 或 <kbd>Ctrl+Shift+I</kbd>。</li>
+        <li>停止服务：启动窗口按 <kbd>Ctrl+C</kbd>，或双击 <code>stop-visual-center.bat</code>。</li>
+      </ul>
+      <button type="submit" class="text-btn text-btn--primary">知道了</button>
+    </form>
+  </dialog>
+
+  <script src="vendor/markdown-renderer.min.js"></script>
+  <script src="vendor/sanitizer.min.js"></script>
+  <script src="vendor/syntax-highlighter.min.js"></script>
+  <script src="scripts/markdown-viewer.js"></script>
+  <script src="scripts/tool-viewer.js"></script>
+  <script src="scripts/search.js"></script>
+  <script src="scripts/app.js"></script>
+</body>
+</html>

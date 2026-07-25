@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图片批量缩放工具</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --text-muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-size: 0.95rem;
+    }
+
+    .layout {
+      display: grid;
+      gap: 20px;
+    }
+
+    @media (min-width: 800px) {
+      .layout {
+        grid-template-columns: 280px 1fr;
+        align-items: start;
+      }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    .field label {
+      display: block;
+      font-size: 0.875rem;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+    }
+
+    .field .value {
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover:not(:disabled) { background: #2d3d55; }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface-2);
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    .drop-zone .icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+
+    .drop-zone p { color: var(--text-muted); font-size: 0.9rem; }
+
+    .drop-zone strong { color: var(--text); }
+
+    .drop-hint {
+      font-size: 0.8rem;
+      margin-top: 10px;
+      color: var(--text-muted);
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .stats span strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .image-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .list-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      margin-top: 20px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.85rem;
+    }
+
+    .list-toolbar .sep {
+      color: var(--border);
+      user-select: none;
+    }
+
+    .list-toolbar .link-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .list-toolbar .link-btn:hover { text-decoration: underline; }
+
+    .list-toolbar .selected-hint {
+      color: var(--text-muted);
+    }
+
+    .list-toolbar .selected-hint strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .image-card {
+      display: grid;
+      grid-template-columns: auto 72px 1fr auto;
+      gap: 14px;
+      align-items: start;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .image-card.selected {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .image-card.processing {
+      cursor: default;
+      opacity: 0.85;
+    }
+
+    .card-check {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    .card-info .name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    .card-info .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 10px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .card-info .meta-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #6b7d94;
+      min-width: 2.5em;
+    }
+
+    .card-info .meta-value .arrow { color: var(--accent); margin: 0 4px; }
+
+    .card-info .meta-value .estimate {
+      color: var(--warning);
+    }
+
+    .card-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+      margin-top: 10px;
+    }
+
+    .mini-field {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .mini-field span {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .mini-field strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .mini-field input[type="range"] {
+      width: 100%;
+      height: 4px;
+    }
+
+    .field-hint {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .field-hint .link-btn {
+      font-size: 0.75rem;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-pending { background: #374151; color: #9ca3af; }
+    .badge-processing { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .badge-done { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .badge-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.2s;
+    }
+
+    .log {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      max-height: 120px;
+      overflow-y: auto;
+      font-family: ui-monospace, monospace;
+    }
+
+    .log .line { padding: 2px 0; }
+    .log .line.ok { color: var(--success); }
+
+    #fileInput { display: none; }
+    #folderInput { display: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>图片批量缩放</h1>
+      <p>等比例缩小图片尺寸，可为每张图片单独设置缩放比例与质量，支持 JPG / PNG / WebP / BMP</p>
+    </header>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>处理参数</h2>
+
+        <div class="field">
+          <label>默认缩放比例：<span class="value" id="scaleLabel">50%</span></label>
+          <input type="range" id="scaleRange" min="10" max="100" value="50" step="5">
+          <div class="field-hint">
+            <span>新添加图片的默认值</span>
+            <button type="button" class="link-btn" id="btnApplyScale">应用到已选</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>默认 JPEG / WebP 质量：<span class="value" id="qualityLabel">90</span></label>
+          <input type="range" id="qualityRange" min="50" max="100" value="90" step="1">
+          <div class="field-hint">
+            <span>新添加图片的默认值</span>
+            <button type="button" class="link-btn" id="btnApplyQuality">应用到已选</button>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btnProcess" disabled>开始处理</button>
+          <button class="btn btn-secondary" id="btnDownloadZip" disabled>下载 ZIP</button>
+          <button class="btn btn-secondary" id="btnClear">清空列表</button>
+        </div>
+
+        <div class="progress-bar" id="progressBar" style="display:none">
+          <div class="fill" id="progressFill"></div>
+        </div>
+
+        <div class="log" id="log"></div>
+      </aside>
+
+      <main class="panel">
+        <div class="drop-zone" id="dropZone">
+          <div class="icon">🖼️</div>
+          <p><strong>点击选择图片</strong> 或拖拽文件到此处</p>
+          <p class="drop-hint">支持多选文件 · 也可选择整个文件夹</p>
+          <div class="btn-group" style="justify-content:center;margin-top:16px">
+            <button class="btn btn-secondary" id="btnPickFiles">选择文件</button>
+            <button class="btn btn-secondary" id="btnPickFolder">选择文件夹</button>
+          </div>
+        </div>
+
+        <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.webp,image/*">
+        <input type="file" id="folderInput" webkitdirectory multiple>
+
+        <div class="stats" id="stats" style="display:none;margin-top:20px">
+          <span>共 <strong id="statTotal">0</strong> 张</span>
+          <span>已完成 <strong id="statDone">0</strong></span>
+          <span>待处理 <strong id="statPending">0</strong></span>
+        </div>
+
+        <div class="list-toolbar" id="listToolbar" style="display:none">
+          <span class="selected-hint">已选 <strong id="statSelected">0</strong> 张</span>
+          <span class="sep">|</span>
+          <button type="button" class="link-btn" id="btnSelectAllPending">全选待处理</button>
+          <button type="button" class="link-btn" id="btnSelectAll">全选</button>
+          <button type="button" class="link-btn" id="btnDeselectAll">取消全选</button>
+          <button type="button" class="link-btn" id="btnInvertSelect">反选</button>
+        </div>
+
+        <div class="image-grid" id="imageGrid" style="margin-top:16px"></div>
+        <div class="empty-state" id="emptyState">尚未添加图片</div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const VALID_EXT = ['.jpg', '.jpeg', '.png', '.bmp', '.webp'];
+
+    const scaleRange = document.getElementById('scaleRange');
+    const qualityRange = document.getElementById('qualityRange');
+    const scaleLabel = document.getElementById('scaleLabel');
+    const qualityLabel = document.getElementById('qualityLabel');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const folderInput = document.getElementById('folderInput');
+    const imageGrid = document.getElementById('imageGrid');
+    const emptyState = document.getElementById('emptyState');
+    const stats = document.getElementById('stats');
+    const statTotal = document.getElementById('statTotal');
+    const statDone = document.getElementById('statDone');
+    const statPending = document.getElementById('statPending');
+    const btnProcess = document.getElementById('btnProcess');
+    const btnDownloadZip = document.getElementById('btnDownloadZip');
+    const btnClear = document.getElementById('btnClear');
+    const btnPickFiles = document.getElementById('btnPickFiles');
+    const btnPickFolder = document.getElementById('btnPickFolder');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const logEl = document.getElementById('log');
+    const listToolbar = document.getElementById('listToolbar');
+    const statSelected = document.getElementById('statSelected');
+    const btnSelectAllPending = document.getElementById('btnSelectAllPending');
+    const btnSelectAll = document.getElementById('btnSelectAll');
+    const btnDeselectAll = document.getElementById('btnDeselectAll');
+    const btnInvertSelect = document.getElementById('btnInvertSelect');
+    const btnApplyScale = document.getElementById('btnApplyScale');
+    const btnApplyQuality = document.getElementById('btnApplyQuality');
+
+    /** @type {Array<{id:string,file:File,thumbUrl:string,origW:number,origH:number,newW:number,newH:number,scale:number,quality:number,status:string,blob:Blob|null,error:string,selected:boolean}>} */
+    let items = [];
+    let isProcessing = false;
+
+    function isProcessable(item) {
+      return item.status === 'pending' || item.status === 'error';
+    }
+
+    function resetItemIfDone(item) {
+      if (item.status !== 'done') return;
+      item.status = 'pending';
+      item.blob = null;
+      item.error = '';
+      const card = document.querySelector(`[data-id="${item.id}"]`);
+      if (card) {
+        const badge = card.querySelector('.badge');
+        if (badge) {
+          badge.className = 'badge badge-pending';
+          badge.textContent = '待处理';
+        }
+      }
+      updateStats();
+    }
+
+    function getSelectedProcessable() {
+      return items.filter(i => i.selected && isProcessable(i));
+    }
+
+    function getSelectedDone() {
+      return items.filter(i => i.selected && i.status === 'done' && i.blob);
+    }
+
+    scaleRange.addEventListener('input', () => {
+      scaleLabel.textContent = scaleRange.value + '%';
+    });
+
+    qualityRange.addEventListener('input', () => {
+      qualityLabel.textContent = qualityRange.value;
+    });
+
+    function updateItemTargetSize(item) {
+      const scale = item.scale / 100;
+      item.newW = Math.max(1, Math.round(item.origW * scale));
+      item.newH = Math.max(1, Math.round(item.origH * scale));
+      updateCardMeta(item);
+    }
+
+    function syncCardControls(item) {
+      const card = document.querySelector(`[data-id="${item.id}"]`);
+      if (!card) return;
+      const scaleInput = card.querySelector('.card-scale');
+      const qualityInput = card.querySelector('.card-quality');
+      const scaleVal = card.querySelector('.card-scale-val');
+      const qualityVal = card.querySelector('.card-quality-val');
+      if (scaleInput) scaleInput.value = String(item.scale);
+      if (qualityInput) qualityInput.value = String(item.quality);
+      if (scaleVal) scaleVal.textContent = item.scale + '%';
+      if (qualityVal) qualityVal.textContent = String(item.quality);
+    }
+
+    function applyScaleToSelected() {
+      const scale = parseInt(scaleRange.value, 10);
+      const selected = items.filter(i => i.selected);
+      if (!selected.length) {
+        log('请先选择要应用的图片');
+        return;
+      }
+      selected.forEach(item => {
+        item.scale = scale;
+        resetItemIfDone(item);
+        updateItemTargetSize(item);
+        syncCardControls(item);
+      });
+      log(`已将缩放 ${scale}% 应用到 ${selected.length} 张已选图片`);
+    }
+
+    function applyQualityToSelected() {
+      const quality = parseInt(qualityRange.value, 10);
+      const selected = items.filter(i => i.selected);
+      if (!selected.length) {
+        log('请先选择要应用的图片');
+        return;
+      }
+      selected.forEach(item => {
+        item.quality = quality;
+        resetItemIfDone(item);
+        syncCardControls(item);
+        updateCardMeta(item);
+      });
+      log(`已将质量 ${quality} 应用到 ${selected.length} 张已选图片`);
+    }
+
+    function isValidImage(file) {
+      const name = file.name.toLowerCase();
+      return VALID_EXT.some(ext => name.endsWith(ext));
+    }
+
+    function log(msg, ok = false) {
+      const line = document.createElement('div');
+      line.className = 'line' + (ok ? ' ok' : '');
+      line.textContent = msg;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateStats() {
+      const done = items.filter(i => i.status === 'done').length;
+      const pending = items.filter(i => i.status === 'pending').length;
+      const selectedCount = items.filter(i => i.selected).length;
+      const selectedProcessable = getSelectedProcessable();
+
+      statTotal.textContent = items.length;
+      statDone.textContent = done;
+      statPending.textContent = pending;
+      statSelected.textContent = selectedCount;
+
+      stats.style.display = items.length ? 'flex' : 'none';
+      listToolbar.style.display = items.length ? 'flex' : 'none';
+      emptyState.style.display = items.length ? 'none' : 'block';
+
+      btnProcess.disabled = isProcessing || selectedProcessable.length === 0;
+      btnProcess.textContent = selectedProcessable.length
+        ? `开始处理 (${selectedProcessable.length})`
+        : '开始处理';
+
+      const zipItems = getSelectedDone();
+      const allDone = items.filter(i => i.status === 'done' && i.blob);
+      btnDownloadZip.disabled = zipItems.length === 0 && allDone.length === 0;
+      btnDownloadZip.textContent = zipItems.length
+        ? `下载 ZIP (${zipItems.length})`
+        : allDone.length ? `下载 ZIP (${allDone.length})` : '下载 ZIP';
+    }
+
+    function setItemSelected(item, selected, skipStats = false) {
+      item.selected = selected;
+      const card = document.querySelector(`[data-id="${item.id}"]`);
+      if (card) {
+        card.classList.toggle('selected', selected);
+        const check = card.querySelector('.card-check');
+        if (check) check.checked = selected;
+      }
+      if (!skipStats) updateStats();
+    }
+
+    function selectAll() {
+      items.forEach(i => setItemSelected(i, true, true));
+      updateStats();
+    }
+
+    function deselectAll() {
+      items.forEach(i => setItemSelected(i, false, true));
+      updateStats();
+    }
+
+    function selectAllPending() {
+      items.forEach(i => setItemSelected(i, isProcessable(i), true));
+      updateStats();
+    }
+
+    function invertSelection() {
+      items.forEach(i => setItemSelected(i, !i.selected, true));
+      updateStats();
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || bytes < 0) return '—';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function getEstimatedSize(item) {
+      const pixelRatio = (item.newW * item.newH) / (item.origW * item.origH);
+      const mime = getOutputMime(item.file.name);
+      const qualityFactor = (mime === 'image/jpeg' || mime === 'image/webp')
+        ? item.quality / 100
+        : 1;
+      return Math.max(1, Math.round(item.file.size * pixelRatio * qualityFactor));
+    }
+
+    function getDimsHtml(item) {
+      return `${item.origW} × ${item.origH} <span class="arrow">→</span> ${item.newW} × ${item.newH}`;
+    }
+
+    function getSizeHtml(item) {
+      const orig = formatFileSize(item.file.size);
+      if (item.status === 'done' && item.blob) {
+        const saved = item.file.size - item.blob.size;
+        const savedPct = item.file.size > 0 ? Math.round((saved / item.file.size) * 100) : 0;
+        const savedHint = saved > 0 ? ` <span class="estimate">(-${savedPct}%)</span>` : '';
+        return `${orig} <span class="arrow">→</span> ${formatFileSize(item.blob.size)}${savedHint}`;
+      }
+      const est = formatFileSize(getEstimatedSize(item));
+      return `${orig} <span class="arrow">→</span> <span class="estimate" title="按像素比例估算，实际体积受格式与质量影响">~${est}</span>`;
+    }
+
+    function updateCardMeta(item) {
+      const card = document.querySelector(`[data-id="${item.id}"]`);
+      if (!card) return;
+      const dims = card.querySelector('.dims');
+      const size = card.querySelector('.size');
+      if (dims) dims.innerHTML = getDimsHtml(item);
+      if (size) size.innerHTML = getSizeHtml(item);
+    }
+
+    function renderCard(item) {
+      let card = document.querySelector(`[data-id="${item.id}"]`);
+      if (!card) {
+        card = document.createElement('div');
+        card.className = 'image-card';
+        card.dataset.id = item.id;
+        card.innerHTML = `
+          <input type="checkbox" class="card-check" aria-label="选择图片">
+          <img class="thumb" alt="">
+          <div class="card-info">
+            <div class="name"></div>
+            <div class="meta-row">
+              <span class="meta-label">尺寸</span>
+              <span class="meta-value dims"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">体积</span>
+              <span class="meta-value size"></span>
+            </div>
+            <div class="card-controls">
+              <label class="mini-field">
+                <span>缩放 <strong class="card-scale-val"></strong></span>
+                <input type="range" class="card-scale" min="10" max="100" step="5">
+              </label>
+              <label class="mini-field">
+                <span>质量 <strong class="card-quality-val"></strong></span>
+                <input type="range" class="card-quality" min="50" max="100" step="1">
+              </label>
+            </div>
+          </div>
+          <span class="badge"></span>
+        `;
+
+        const check = card.querySelector('.card-check');
+        check.addEventListener('click', (e) => e.stopPropagation());
+        check.addEventListener('change', () => setItemSelected(item, check.checked));
+
+        const scaleInput = card.querySelector('.card-scale');
+        const qualityInput = card.querySelector('.card-quality');
+        scaleInput.addEventListener('click', (e) => e.stopPropagation());
+        qualityInput.addEventListener('click', (e) => e.stopPropagation());
+        scaleInput.addEventListener('input', () => {
+          item.scale = parseInt(scaleInput.value, 10);
+          resetItemIfDone(item);
+          updateItemTargetSize(item);
+          syncCardControls(item);
+        });
+        qualityInput.addEventListener('input', () => {
+          item.quality = parseInt(qualityInput.value, 10);
+          resetItemIfDone(item);
+          syncCardControls(item);
+          updateCardMeta(item);
+        });
+
+        card.addEventListener('click', (e) => {
+          if (isProcessing || item.status === 'processing') return;
+          if (e.target.closest('.card-check, .card-controls, input')) return;
+          setItemSelected(item, !item.selected);
+        });
+
+        imageGrid.appendChild(card);
+      }
+
+      card.classList.toggle('selected', item.selected);
+      card.classList.toggle('processing', item.status === 'processing');
+      const check = card.querySelector('.card-check');
+      check.checked = item.selected;
+      check.disabled = isProcessing || item.status === 'processing';
+
+      card.querySelector('.thumb').src = item.thumbUrl;
+      card.querySelector('.name').textContent = item.file.name;
+      syncCardControls(item);
+      updateCardMeta(item);
+
+      const scaleInput = card.querySelector('.card-scale');
+      const qualityInput = card.querySelector('.card-quality');
+      const controlsDisabled = isProcessing || item.status === 'processing';
+      if (scaleInput) scaleInput.disabled = controlsDisabled;
+      if (qualityInput) qualityInput.disabled = controlsDisabled;
+
+      const badge = card.querySelector('.badge');
+      badge.className = 'badge badge-' + item.status;
+      const labels = { pending: '待处理', processing: '处理中', done: '已完成', error: '失败' };
+      badge.textContent = item.error ? item.error : labels[item.status] || item.status;
+    }
+
+    async function loadImageMeta(file) {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = url;
+      });
+      return { url, width: img.naturalWidth, height: img.naturalHeight };
+    }
+
+    async function addFiles(fileList) {
+      const scale = parseInt(scaleRange.value, 10);
+      const quality = parseInt(qualityRange.value, 10);
+      const files = Array.from(fileList).filter(isValidImage);
+
+      if (!files.length) {
+        log('未找到支持的图片格式');
+        return;
+      }
+
+      for (const file of files) {
+        if (items.some(i => i.file.name === file.name && i.file.size === file.size)) continue;
+
+        try {
+          const meta = await loadImageMeta(file);
+          const id = crypto.randomUUID();
+          const item = {
+            id,
+            file,
+            thumbUrl: meta.url,
+            origW: meta.width,
+            origH: meta.height,
+            scale,
+            quality,
+            newW: Math.max(1, Math.round(meta.width * scale / 100)),
+            newH: Math.max(1, Math.round(meta.height * scale / 100)),
+            status: 'pending',
+            blob: null,
+            error: '',
+            selected: true
+          };
+          items.push(item);
+          renderCard(item);
+        } catch {
+          log(`无法读取: ${file.name}`);
+        }
+      }
+
+      updateStats();
+      if (files.length) log(`已添加 ${files.length} 张图片`);
+    }
+
+    function getOutputMime(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'png') return 'image/png';
+      if (ext === 'bmp') return 'image/png';
+      return 'image/png';
+    }
+
+    function getOutputFilename(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (ext === 'bmp') {
+        const base = filename.slice(0, -(ext.length + 1));
+        return base + '.png';
+      }
+      return filename;
+    }
+
+  /**
+   * 多步缩小近似 LANCZOS：每次最多缩一半，使用高质量 canvas 平滑
+   */
+    async function resizeImage(file, targetW, targetH, quality) {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = url;
+      });
+      URL.revokeObjectURL(url);
+
+      let srcCanvas = document.createElement('canvas');
+      srcCanvas.width = img.naturalWidth;
+      srcCanvas.height = img.naturalHeight;
+      const srcCtx = srcCanvas.getContext('2d');
+      srcCtx.drawImage(img, 0, 0);
+
+      let curW = img.naturalWidth;
+      let curH = img.naturalHeight;
+
+      while (curW > targetW * 2 || curH > targetH * 2) {
+        const nextW = Math.max(targetW, Math.floor(curW / 2));
+        const nextH = Math.max(targetH, Math.floor(curH / 2));
+        const stepCanvas = document.createElement('canvas');
+        stepCanvas.width = nextW;
+        stepCanvas.height = nextH;
+        const stepCtx = stepCanvas.getContext('2d');
+        stepCtx.imageSmoothingEnabled = true;
+        stepCtx.imageSmoothingQuality = 'high';
+        stepCtx.drawImage(srcCanvas, 0, 0, curW, curH, 0, 0, nextW, nextH);
+        srcCanvas = stepCanvas;
+        curW = nextW;
+        curH = nextH;
+      }
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = targetW;
+      outCanvas.height = targetH;
+      const outCtx = outCanvas.getContext('2d');
+      outCtx.imageSmoothingEnabled = true;
+      outCtx.imageSmoothingQuality = 'high';
+      outCtx.drawImage(srcCanvas, 0, 0, curW, curH, 0, 0, targetW, targetH);
+
+      const mime = getOutputMime(file.name);
+      const q = quality / 100;
+      const blob = await new Promise(resolve => {
+        outCanvas.toBlob(resolve, mime, mime === 'image/png' ? undefined : q);
+      });
+
+      return blob;
+    }
+
+    async function processAll() {
+      const toProcess = getSelectedProcessable();
+      if (!toProcess.length) return;
+
+      isProcessing = true;
+      updateStats();
+      items.forEach(i => renderCard(i));
+      progressBar.style.display = 'block';
+      log(`开始处理已选的 ${toProcess.length} 张图片…`);
+
+      let idx = 0;
+      for (const item of toProcess) {
+        item.status = 'processing';
+        item.error = '';
+        renderCard(item);
+
+        try {
+          item.blob = await resizeImage(item.file, item.newW, item.newH, item.quality);
+          item.status = 'done';
+          const sizeDelta = item.file.size - item.blob.size;
+          const sizePct = item.file.size > 0 ? Math.round((sizeDelta / item.file.size) * 100) : 0;
+          const sizeNote = sizeDelta > 0 ? ` (-${sizePct}%)` : sizeDelta < 0 ? ` (+${Math.abs(sizePct)}%)` : '';
+          log(`已处理: ${item.file.name} [${item.scale}%, Q${item.quality}] → ${item.newW} × ${item.newH}，${formatFileSize(item.file.size)} → ${formatFileSize(item.blob.size)}${sizeNote}`, true);
+        } catch {
+          item.status = 'error';
+          item.error = '处理失败';
+          log(`失败: ${item.file.name}`);
+        }
+
+        idx++;
+        progressFill.style.width = `${(idx / toProcess.length) * 100}%`;
+        renderCard(item);
+        updateStats();
+      }
+
+      isProcessing = false;
+      progressBar.style.display = 'none';
+      progressFill.style.width = '0%';
+      log('所选图片处理完成！');
+      updateStats();
+      items.forEach(i => renderCard(i));
+    }
+
+    async function downloadZip() {
+      const selectedDone = getSelectedDone();
+      const allDone = items.filter(i => i.status === 'done' && i.blob);
+      const done = selectedDone.length ? selectedDone : allDone;
+      if (!done.length) return;
+
+      const zip = new JSZip();
+      done.forEach(item => {
+        zip.file(getOutputFilename(item.file.name), item.blob);
+      });
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = 'resized_images.zip';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      log(`已下载 ZIP，共 ${done.length} 张`);
+    }
+
+    function clearAll() {
+      items.forEach(i => URL.revokeObjectURL(i.thumbUrl));
+      items = [];
+      imageGrid.innerHTML = '';
+      logEl.innerHTML = '';
+      updateStats();
+    }
+
+    dropZone.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      fileInput.click();
+    });
+
+    btnPickFiles.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    btnPickFolder.addEventListener('click', (e) => {
+      e.stopPropagation();
+      folderInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) addFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    folderInput.addEventListener('change', () => {
+      if (folderInput.files.length) addFiles(folderInput.files);
+      folderInput.value = '';
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    });
+
+    btnProcess.addEventListener('click', processAll);
+    btnDownloadZip.addEventListener('click', downloadZip);
+    btnClear.addEventListener('click', clearAll);
+    btnSelectAllPending.addEventListener('click', selectAllPending);
+    btnSelectAll.addEventListener('click', selectAll);
+    btnDeselectAll.addEventListener('click', deselectAll);
+    btnInvertSelect.addEventListener('click', invertSelection);
+    btnApplyScale.addEventListener('click', applyScaleToSelected);
+    btnApplyQuality.addEventListener('click', applyQualityToSelected);
+  </script>
+</body>
+</html>

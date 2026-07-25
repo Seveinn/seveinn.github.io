@@ -1,0 +1,60 @@
+{
+  "documents": [
+    {
+      "id": "asset-rendering",
+      "title": "素材渲染参考",
+      "path": "../docs/素材渲染参考.md",
+      "category": "素材与渲染",
+      "description": "素材尺寸、Canvas 与 HiDPI 渲染参考"
+    },
+    {
+      "id": "lxgw-wenkai",
+      "title": "霞鹜文楷字体应用流程",
+      "path": "../docs/霞鹜文楷字体应用流程.md",
+      "category": "字体与界面",
+      "description": "霞鹜文楷引入、CSS Token 与配置开关流程"
+    }
+  ],
+  "tools": [
+    {
+      "id": "asset-split",
+      "title": "素材拆分",
+      "path": "../dev-tools/素材拆分.html",
+      "category": "图像处理",
+      "description": "将素材图按规则拆分为独立资源",
+      "openMode": "iframe"
+    },
+    {
+      "id": "parts-split",
+      "title": "配件拆分",
+      "path": "../dev-tools/配件拆分.html",
+      "category": "图像处理",
+      "description": "拆分与整理配件类图像素材",
+      "openMode": "iframe"
+    },
+    {
+      "id": "pic-batch",
+      "title": "图片批量处理",
+      "path": "../dev-tools/PicBatchProcess.html",
+      "category": "图像处理",
+      "description": "批量处理图片尺寸、格式与导出",
+      "openMode": "iframe"
+    },
+    {
+      "id": "rhythm-rain",
+      "title": "节奏雨游戏",
+      "path": "../dev-tools/rhythm_rain_game.html",
+      "category": "演示与游戏",
+      "description": "节奏雨玩法演示页",
+      "openMode": "iframe"
+    },
+    {
+      "id": "puzzle-cutter",
+      "title": "拼图切割器",
+      "path": "../dev-tools/puzzle-cutter/index.html",
+      "category": "图像处理",
+      "description": "将图片切割为拼图块并导出",
+      "openMode": "iframe"
+    }
+  ]
+}
