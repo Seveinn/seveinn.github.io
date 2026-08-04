@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D 帧动画预览与精灵图合成工具 (Sprite Sheet Tools)</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --panel-border: #334155;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        header {
+            margin-bottom: 24px;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 4px;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+            flex: 1;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--primary);
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 6px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        label span.val {
+            color: var(--text-main);
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-btn {
+            background: #2563eb15;
+            border: 2px dashed #3b82f6;
+            color: #60a5fa;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .file-upload-btn:hover {
+            background: #2563eb30;
+            border-color: #60a5fa;
+        }
+
+        input[type="number"], select {
+            background: var(--input-bg);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        input[type="number"]:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-accent {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-accent:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+        }
+
+        .btn-outline:hover {
+            background: var(--input-bg);
+        }
+
+        .preview-area {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stage-container {
+            flex: 1;
+            min-height: 380px;
+            background-color: #020617;
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            /* 透明棋盘格背景 */
+            background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%), 
+                              linear-gradient(-45deg, #1e293b 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #1e293b 75%), 
+                              linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        canvas#stage {
+            max-width: 90%;
+            max-height: 90%;
+            image-rendering: pixelated; /* 像素风清晰度 */
+        }
+
+        .hud-overlay {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(4px);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            border: 1px solid var(--panel-border);
+            font-family: monospace;
+        }
+
+        .frames-timeline {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            max-height: 110px;
+        }
+
+        .frame-thumb {
+            width: 70px;
+            height: 70px;
+            border: 2px solid var(--panel-border);
+            border-radius: 6px;
+            background: #020617;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            transition: all 0.15s;
+        }
+
+        .frame-thumb.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+
+        .frame-thumb img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .frame-thumb .num {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            font-size: 0.65rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .export-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow: auto;
+        }
+
+        .sprite-preview-container {
+            max-width: 100%;
+            overflow: auto;
+            background: #020617;
+            border: 1px solid var(--panel-border);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .sprite-preview-container canvas {
+            max-width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🎮 2D 帧动画预览与 Sprite Sheet 生成工具</h1>
+        <p>导入多张动画帧 PNG 图片，实时测试游戏动画播放效果，并可一键打包导出为 Sprite Sheet 精灵图</p>
+    </header>
+
+    <div class="main-layout">
+        <!-- 左侧控制面板 -->
+        <div class="panel">
+            <div>
+                <div class="section-title">1. 导入序列帧</div>
+                <label class="file-upload-btn">
+                    📁 选择/拖入多张动画帧 PNG
+                    <input type="file" id="fileInput" accept="image/*" multiple>
+                </label>
+            </div>
+
+            <div>
+                <div class="section-title">2. 播放控制器</div>
+                <div class="btn-group" style="margin-bottom: 12px;">
+                    <button class="btn btn-primary" id="playBtn">⏸ 暂停</button>
+                    <button class="btn btn-outline" id="prevBtn">⏮ 上一帧</button>
+                    <button class="btn btn-outline" id="nextBtn">⏭ 下一帧</button>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>播放模式</label>
+                    <select id="playMode">
+                        <option value="loop">循环播放 (Loop)</option>
+                        <option value="pingpong">乒乓往复 (Ping-Pong)</option>
+                        <option value="once">单次播放 (Once)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>镜像翻转 (Flip X)</label>
+                    <select id="flipX">
+                        <option value="false">正常方向 (Normal)</option>
+                        <option value="true">水平翻转 (Flip Horizontal)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">3. 帧率与速率设置</div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>目标帧率 (FPS): <span class="val" id="fpsVal">12</span></label>
+                    <input type="range" id="fpsRange" min="1" max="60" value="12">
+                </label>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>播放速率 (Speed): <span class="val" id="speedVal">1.0x</span></label>
+                    <input type="range" id="speedRange" min="0.1" max="3.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="form-group">
+                    <label>每帧额外延迟 (ms): <span class="val" id="delayVal">0 ms</span></label>
+                    <input type="range" id="delayRange" min="0" max="500" step="10" value="0">
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">4. 导出工具</div>
+                <button class="btn btn-accent" id="exportBtn" style="width: 100%;">🧩 一键合成 Sprite Sheet</button>
+            </div>
+        </div>
+
+        <!-- 右侧预览与时间轴 -->
+        <div class="preview-area">
+            <div class="stage-container">
+                <div class="hud-overlay" id="hudInfo">FPS: 12 | 帧: 0/0</div>
+                <canvas id="stage"></canvas>
+            </div>
+
+            <!-- 序列帧缩略图轨道 -->
+            <div class="frames-timeline" id="timeline">
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin: auto;">请先选择或拖入图片帧...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 合成精灵图弹窗 -->
+    <div class="export-modal" id="exportModal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 1.1rem; color: var(--text-main);">🧩 合成 Sprite Sheet 成功</h3>
+                <button class="btn btn-outline" id="closeModalBtn" style="padding: 4px 10px;">✕</button>
+            </div>
+            
+            <div class="form-group" style="flex-direction: row; gap: 16px; align-items: center;">
+                <label style="margin: 0;">排列方向：</label>
+                <select id="sheetLayout" style="width: auto;">
+                    <option value="horizontal">横向一字排开 (1 行 N 列)</option>
+                    <option value="grid">网格自动排布 (Grid Auto)</option>
+                </select>
+            </div>
+
+            <div class="sprite-preview-container">
+                <canvas id="spriteCanvas"></canvas>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn btn-outline" id="closeModalBtn2">取消</button>
+                <button class="btn btn-accent" id="downloadSheetBtn">💾 下载 PNG 精灵图文件</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态管理
+        const state = {
+            images: [],           // 加载的 Image 对象列表
+            currentFrame: 0,      // 当前播放帧索引
+            isPlaying: true,      // 播放状态
+            fps: 12,              // 基础帧率
+            speed: 1.0,           // 速率倍率
+            extraDelay: 0,        // 帧额外延迟 ms
+            playMode: 'loop',     // loop, pingpong, once
+            direction: 1,         // 1: 正向, -1: 反向 (用于 pingpong)
+            flipX: false,         // 水平镜像
+            lastFrameTime: 0      // 上一次渲染时间
+        };
+
+        // DOM 元素引用
+        const fileInput = document.getElementById('fileInput');
+        const playBtn = document.getElementById('playBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const fpsRange = document.getElementById('fpsRange');
+        const fpsVal = document.getElementById('fpsVal');
+        const speedRange = document.getElementById('speedRange');
+        const speedVal = document.getElementById('speedVal');
+        const delayRange = document.getElementById('delayRange');
+        const delayVal = document.getElementById('delayVal');
+        const playModeSelect = document.getElementById('playMode');
+        const flipXSelect = document.getElementById('flipX');
+        const stage = document.getElementById('stage');
+        const ctx = stage.getContext('2d');
+        const timeline = document.getElementById('timeline');
+        const hudInfo = document.getElementById('hudInfo');
+
+        const exportBtn = document.getElementById('exportBtn');
+        const exportModal = document.getElementById('exportModal');
+        const spriteCanvas = document.getElementById('spriteCanvas');
+        const spriteCtx = spriteCanvas.getContext('2d');
+        const sheetLayout = document.getElementById('sheetLayout');
+        const downloadSheetBtn = document.getElementById('downloadSheetBtn');
+
+        // 文件导入监听 (自动按文件名升序排序)
+        fileInput.addEventListener('change', handleFilesSelect);
+
+        function handleFilesSelect(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // 自然排序 (walk-0.png, walk-1.png, walk-2.png, walk-10.png)
+            files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+            state.images = [];
+            let loadedCount = 0;
+
+            files.forEach((file, idx) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadedCount++;
+                    if (loadedCount === files.length) {
+                        initTimeline();
+                        state.currentFrame = 0;
+                        updateCanvasSize();
+                    }
+                };
+                img.src = URL.createObjectURL(file);
+                state.images.push(img);
+            });
+        }
+
+        // 初始化底部的轨道缩略图
+        function initTimeline() {
+            timeline.innerHTML = '';
+            state.images.forEach((img, idx) => {
+                const thumb = document.createElement('div');
+                thumb.className = `frame-thumb ${idx === 0 ? 'active' : ''}`;
+                thumb.dataset.index = idx;
+                
+                const imgEl = document.createElement('img');
+                imgEl.src = img.src;
+                
+                const numEl = document.createElement('div');
+                numEl.className = 'num';
+                numEl.innerText = idx;
+
+                thumb.appendChild(imgEl);
+                thumb.appendChild(numEl);
+
+                thumb.addEventListener('click', () => {
+                    state.currentFrame = idx;
+                    state.isPlaying = false;
+                    playBtn.innerText = '▶ 播放';
+                    renderFrame();
+                    updateTimelineUI();
+                });
+
+                timeline.appendChild(thumb);
+            });
+        }
+
+        function updateTimelineUI() {
+            const thumbs = timeline.querySelectorAll('.frame-thumb');
+            thumbs.forEach((t, i) => {
+                if (i === state.currentFrame) {
+                    t.classList.add('active');
+                    t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                } else {
+                    t.classList.remove('active');
+                }
+            });
+        }
+
+        function updateCanvasSize() {
+            if (state.images.length === 0) return;
+            const firstImg = state.images[0];
+            stage.width = firstImg.naturalWidth;
+            stage.height = firstImg.naturalHeight;
+        }
+
+        // 主画板渲染方法
+        function renderFrame() {
+            if (state.images.length === 0) return;
+
+            ctx.clearRect(0, 0, stage.width, stage.height);
+            ctx.save();
+
+            // 处理水平翻转 (Flip X)
+            if (state.flipX) {
+                ctx.translate(stage.width, 0);
+                ctx.scale(-1, 1);
+            }
+
+            const img = state.images[state.currentFrame];
+            if (img) {
+                ctx.drawImage(img, 0, 0);
+            }
+
+            ctx.restore();
+
+            // 更新 HUD 界面
+            hudInfo.innerText = `FPS: ${state.fps} | 速率: ${state.speed}x | 帧: ${state.currentFrame + 1}/${state.images.length}`;
+            updateTimelineUI();
+        }
+
+        // 核心动画循环 (基于 requestAnimationFrame 精确控制时间间隔)
+        function animLoop(timestamp) {
+            if (!state.lastFrameTime) state.lastFrameTime = timestamp;
+
+            if (state.isPlaying && state.images.length > 0) {
+                // 计算帧间隔 (ms): 1000 / (fps * speed) + extraDelay
+                const baseInterval = 1000 / (state.fps * state.speed);
+                const totalInterval = baseInterval + parseInt(state.extraDelay);
+
+                if (timestamp - state.lastFrameTime >= totalInterval) {
+                    advanceFrame();
+                    renderFrame();
+                    state.lastFrameTime = timestamp;
+                }
+            }
+
+            requestAnimationFrame(animLoop);
+        }
+
+        // 计算下一帧的逻辑 (处理 Loop / Ping-pong / Once)
+        function advanceFrame() {
+            const total = state.images.length;
+            if (total === 0) return;
+
+            if (state.playMode === 'loop') {
+                state.currentFrame = (state.currentFrame + 1) % total;
+            } else if (state.playMode === 'once') {
+                if (state.currentFrame < total - 1) {
+                    state.currentFrame++;
+                } else {
+                    state.isPlaying = false;
+                    playBtn.innerText = '▶ 播放';
+                }
+            } else if (state.playMode === 'pingpong') {
+                if (state.direction === 1) {
+                    if (state.currentFrame < total - 1) {
+                        state.currentFrame++;
+                    } else {
+                        state.direction = -1;
+                        state.currentFrame--;
+                    }
+                } else {
+                    if (state.currentFrame > 0) {
+                        state.currentFrame--;
+                    } else {
+                        state.direction = 1;
+                        state.currentFrame++;
+                    }
+                }
+            }
+        }
+
+        // 控制面板事件绑定
+        playBtn.addEventListener('click', () => {
+            state.isPlaying = !state.isPlaying;
+            playBtn.innerText = state.isPlaying ? '⏸ 暂停' : '▶ 播放';
+        });
+
+        prevBtn.addEventListener('click', () => {
+            state.isPlaying = false;
+            playBtn.innerText = '▶ 播放';
+            state.currentFrame = (state.currentFrame - 1 + state.images.length) % state.images.length;
+            renderFrame();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            state.isPlaying = false;
+            playBtn.innerText = '▶ 播放';
+            state.currentFrame = (state.currentFrame + 1) % state.images.length;
+            renderFrame();
+        });
+
+        fpsRange.addEventListener('input', (e) => {
+            state.fps = parseInt(e.target.value);
+            fpsVal.innerText = state.fps;
+        });
+
+        speedRange.addEventListener('input', (e) => {
+            state.speed = parseFloat(e.target.value);
+            speedVal.innerText = state.speed.toFixed(1) + 'x';
+        });
+
+        delayRange.addEventListener('input', (e) => {
+            state.extraDelay = parseInt(e.target.value);
+            delayVal.innerText = state.extraDelay + ' ms';
+        });
+
+        playModeSelect.addEventListener('change', (e) => {
+            state.playMode = e.target.value;
+            state.direction = 1;
+        });
+
+        flipXSelect.addEventListener('change', (e) => {
+            state.flipX = e.target.value === 'true';
+            renderFrame();
+        });
+
+        // 打包 Sprite Sheet 功能
+        exportBtn.addEventListener('click', () => {
+            if (state.images.length === 0) {
+                alert('请先导入图片序列！');
+                return;
+            }
+            buildSpriteSheet();
+            exportModal.style.display = 'flex';
+        });
+
+        function buildSpriteSheet() {
+            if (state.images.length === 0) return;
+
+            const count = state.images.length;
+            const frameW = state.images[0].naturalWidth;
+            const frameH = state.images[0].naturalHeight;
+
+            let cols = count;
+            let rows = 1;
+
+            if (sheetLayout.value === 'grid') {
+                cols = Math.ceil(Math.sqrt(count));
+                rows = Math.ceil(count / cols);
+            }
+
+            spriteCanvas.width = cols * frameW;
+            spriteCanvas.height = rows * frameH;
+
+            spriteCtx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+
+            state.images.forEach((img, idx) => {
+                const c = idx % cols;
+                const r = Math.floor(idx / cols);
+                spriteCtx.drawImage(img, c * frameW, r * frameH);
+            });
+        }
+
+        sheetLayout.addEventListener('change', buildSpriteSheet);
+
+        // 下载合成的 PNG
+        downloadSheetBtn.addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.download = 'spritesheet.png';
+            a.href = spriteCanvas.toDataURL('image/png');
+            a.click();
+        });
+
+        // 关闭 Modal
+        document.getElementById('closeModalBtn').onclick = () => exportModal.style.display = 'none';
+        document.getElementById('closeModalBtn2').onclick = () => exportModal.style.display = 'none';
+
+        // 启动循环
+        requestAnimationFrame(animLoop);
+    </script>
+</body>
+</html>

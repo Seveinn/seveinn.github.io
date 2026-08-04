@@ -1,0 +1,13 @@
+能量石供能路线：正交折线路由
+电流流动特效，闪电效果
+
+轻量攻击循环：只动武器和手臂，身体保持稳定，不做大位移
+Green screen background, pure flat color background, studio lighting（绿幕背景/单色纯色背景）。
+
+保持固定视角与镜头：
+ Static camera, front view, side view, no camera movement（固定镜头、正/侧面视角、无推拉摇移），避免由于镜头运动导致角色放缩变形。
+消除冗余元素：
+No motion blur, clean contours, no text, no watermark（无运动模糊、轮廓清晰、无水印字幕）。
+
+
+生成视频：角色原地拉弓轻量动作循环（不需要显示弓箭，只需要弓表现出拉弓射出的过程）。只动武器和手臂，身体保持稳定，表情不要变化，不做大位移。保持固定视角与镜头： Static camera, front view, side view, no camera movement（固定镜头、正 / 侧面视角、无推拉摇移），避免由于镜头运动导致角色放缩变形。 消除冗余元素： No motion blur, clean contours, no text, no watermark（无运动模糊、轮廓清晰、无水印字幕）。4s，固定镜头，角色身体须在镜头内完整展示。

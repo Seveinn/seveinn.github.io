@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>TestDemo · 草地待机</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #24341c;
+      --panel: rgba(36, 52, 28, 0.42);
+      --line: rgba(255, 255, 255, 0.18);
+      --cream: #f4f7e8;
+      --accent: #d8e27a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #8fad6e;
+      font-family: "Nunito", system-ui, sans-serif;
+      color: var(--cream);
+    }
+    canvas#game {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+    .hud {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 14px 30px rgba(22, 32, 15, 0.18);
+      pointer-events: none;
+      max-width: min(320px, calc(100vw - 36px));
+    }
+    .hud h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .hud p {
+      margin: 6px 0 0;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      opacity: 0.88;
+      font-weight: 500;
+    }
+    .hud kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.14);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .toolbar {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 28px rgba(22, 32, 15, 0.14);
+      user-select: none;
+    }
+    .toolbar button {
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: var(--cream);
+      background: rgba(255, 255, 255, 0.13);
+      cursor: pointer;
+      font: 700 13px/1 "Nunito", system-ui, sans-serif;
+      transition: background 0.18s ease, transform 0.18s ease;
+    }
+    .toolbar button:hover { background: rgba(255, 255, 255, 0.22); }
+    .toolbar button:active { transform: translateY(1px); }
+    .status {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(36, 52, 28, 0.38);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+    .loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #8fad6e;
+      z-index: 20;
+      transition: opacity 0.35s ease;
+    }
+    .loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading span {
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.55; transform: translateY(0); }
+      50% { opacity: 1; transform: translateY(-3px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading"><span>正在铺开草地…</span></div>
+  <canvas id="game" aria-label="TestDemo 草地待机场景"></canvas>
+
+  <div class="hud">
+    <h1>TestDemo · 草地待机</h1>
+    <p>
+      角色默认循环播放透明序列帧待机。<br />
+      <kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移动 ·
+      <kbd>空格</kbd> 跳跃
+    </p>
+  </div>
+
+  <div class="status" id="status">FPS — · frame —</div>
+
+  <div class="toolbar">
+    <button type="button" id="regen">重新生成背景</button>
+  </div>
+
+  <script>
+(() => {
+  "use strict";
+
+  const FRAME_COUNT = 11;
+  const FRAME_W = 720;
+  const FRAME_H = 720;
+  const FRAME_SRCS = Array.from({ length: FRAME_COUNT }, (_, i) =>
+    `sprites-transparent/walk-${String(i).padStart(2, "0")}.png`
+  );
+  const IDLE_FPS = 8;
+  const MOVE_SPEED = 220;
+  const GRAVITY = 1600;
+  const JUMP_V = -520;
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const statusEl = document.getElementById("status");
+  const loadingEl = document.getElementById("loading");
+  const regenBtn = document.getElementById("regen");
+
+  let seed = 20260805;
+  let bgCanvas = null;
+  let resizeTimer = 0;
+  /** @type {HTMLImageElement[]} */
+  let frames = [];
+  /** @type {{ comX: number, bottom: number }[]} */
+  let framePivots = [];
+  let lastTs = 0;
+  let fpsAccum = 0;
+  let fpsFrames = 0;
+  let fpsDisplay = 0;
+
+  const keys = new Set();
+  const player = {
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    facing: -1,
+    onGround: true,
+    frame: 0,
+    animT: 0,
+    scale: 0.28
+  };
+
+  /* ---------- procedural watercolor grass (from preview.html) ---------- */
+
+  function mulberry32(a) {
+    return function () {
+      let t = (a += 0x6d2b79f5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function hash2(x, y, s) {
+    let n = x * 374761393 + y * 668265263 + s * 1447;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+  function valueNoise(x, y, s) {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const tx = smoothstep(x - x0), ty = smoothstep(y - y0);
+    const a = hash2(x0, y0, s);
+    const b = hash2(x0 + 1, y0, s);
+    const c = hash2(x0, y0 + 1, s);
+    const d = hash2(x0 + 1, y0 + 1, s);
+    return lerp(lerp(a, b, tx), lerp(c, d, tx), ty);
+  }
+
+  function fractalNoise(x, y, s, octaves = 4) {
+    let sum = 0, amp = 0.56, freq = 1, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += valueNoise(x * freq, y * freq, s + i * 911) * amp;
+      norm += amp;
+      amp *= 0.5;
+      freq *= 2;
+    }
+    return sum / norm;
+  }
+
+  function makeLayer(w, h, scale = 1) {
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * scale));
+    c.height = Math.max(1, Math.round(h * scale));
+    return c;
+  }
+
+  function blobPath(c, points) {
+    c.beginPath();
+    c.moveTo(points[0].x, points[0].y);
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const n = points[(i + 1) % points.length];
+      c.quadraticCurveTo(p.x, p.y, (p.x + n.x) * 0.5, (p.y + n.y) * 0.5);
+    }
+    c.closePath();
+  }
+
+  function buildBlob(cx, cy, rx, ry, rnd, rough = 0.08, count = 110) {
+    const pts = [];
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const r = 1
+        + Math.sin(a * 2.3 + rnd() * 0.35) * 0.045
+        + Math.sin(a * 5.7 + rnd() * 0.4) * 0.025
+        + (rnd() - 0.5) * rough;
+      pts.push({ x: cx + Math.cos(a) * rx * r, y: cy + Math.sin(a) * ry * r });
+    }
+    return pts;
+  }
+
+  function drawGrassGlyph(c, x, y, size, angle, color, alpha, rnd) {
+    c.save();
+    c.translate(x, y);
+    c.rotate(angle);
+    c.globalAlpha = alpha;
+    c.strokeStyle = color;
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    c.lineWidth = Math.max(1, size * 0.12);
+    const mode = rnd();
+    const width = size * (0.85 + rnd() * 0.2);
+    const height = size * (0.55 + rnd() * 0.18);
+    c.beginPath();
+    if (mode < 0.52) {
+      c.moveTo(-width * 0.42, height * 0.15);
+      c.quadraticCurveTo(-width * 0.28, -height * 0.48, -width * 0.08, height * 0.02);
+      c.quadraticCurveTo(0, -height * 0.34, width * 0.15, height * 0.04);
+    } else if (mode < 0.82) {
+      c.moveTo(-width * 0.48, height * 0.16);
+      c.quadraticCurveTo(-width * 0.34, -height * 0.48, -width * 0.16, height * 0.02);
+      c.quadraticCurveTo(-width * 0.03, -height * 0.3, width * 0.12, height * 0.02);
+      c.quadraticCurveTo(width * 0.28, -height * 0.4, width * 0.42, height * 0.08);
+    } else {
+      c.moveTo(-width * 0.16, height * 0.14);
+      c.quadraticCurveTo(-width * 0.08, -height * 0.34, 0, -height * 0.5);
+      c.moveTo(width * 0.14, height * 0.16);
+      c.quadraticCurveTo(width * 0.22, -height * 0.26, width * 0.28, -height * 0.44);
+    }
+    c.stroke();
+    c.restore();
+  }
+
+  function paintBackground(target, w, h, rndSeed) {
+    const bctx = target.getContext("2d", { alpha: false });
+    const rnd = mulberry32(rndSeed);
+
+    const g = bctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#9db97b");
+    g.addColorStop(0.28, "#b8cd78");
+    g.addColorStop(0.58, "#c9d67e");
+    g.addColorStop(1, "#90ae72");
+    bctx.fillStyle = g;
+    bctx.fillRect(0, 0, w, h);
+
+    const wash = makeLayer(w, h, 0.4);
+    const wc = wash.getContext("2d");
+    wc.scale(0.4, 0.4);
+    const colors = [
+      [214, 224, 130], [194, 210, 119], [174, 199, 112],
+      [151, 182, 106], [235, 230, 146]
+    ];
+    for (let i = 0; i < 62; i++) {
+      const x = rnd() * w;
+      const y = rnd() * h;
+      const rx = w * (0.08 + rnd() * 0.17);
+      const ry = h * (0.08 + rnd() * 0.18);
+      const [r, gg, bb] = colors[(rnd() * colors.length) | 0];
+      const a = 0.05 + rnd() * 0.05;
+      const rg = wc.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+      rg.addColorStop(0, `rgba(${r},${gg},${bb},${a})`);
+      rg.addColorStop(0.55, `rgba(${r},${gg},${bb},${a * 0.45})`);
+      rg.addColorStop(1, `rgba(${r},${gg},${bb},0)`);
+      wc.save();
+      wc.translate(x, y);
+      wc.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+      wc.translate(-x, -y);
+      wc.fillStyle = rg;
+      wc.beginPath();
+      wc.arc(x, y, Math.max(rx, ry), 0, Math.PI * 2);
+      wc.fill();
+      wc.restore();
+    }
+    bctx.save();
+    bctx.globalCompositeOperation = "soft-light";
+    bctx.filter = `blur(${Math.max(18, Math.min(w, h) * 0.032)}px)`;
+    bctx.drawImage(wash, 0, 0, w, h);
+    bctx.restore();
+    bctx.filter = "none";
+
+    const layer = makeLayer(w, h, 1);
+    const l = layer.getContext("2d");
+    const regions = [
+      [0.15, 0.42, 0.22, 0.17, [161, 191, 111], 0.08],
+      [0.31, 0.52, 0.17, 0.14, [223, 223, 136], 0.095],
+      [0.45, 0.24, 0.28, 0.18, [181, 203, 117], 0.072],
+      [0.57, 0.6, 0.3, 0.21, [221, 222, 132], 0.1],
+      [0.78, 0.44, 0.25, 0.19, [196, 212, 118], 0.085],
+      [0.83, 0.76, 0.28, 0.19, [152, 182, 108], 0.07],
+      [0.34, 0.75, 0.18, 0.13, [228, 226, 139], 0.088],
+      [0.1, 0.78, 0.14, 0.11, [208, 214, 125], 0.07]
+    ];
+    l.save();
+    l.globalAlpha = 0.1;
+    const wg = l.createLinearGradient(0, 0, w, h);
+    wg.addColorStop(0, "rgba(174,199,114,.24)");
+    wg.addColorStop(0.5, "rgba(203,216,124,.20)");
+    wg.addColorStop(1, "rgba(157,187,111,.20)");
+    l.fillStyle = wg;
+    l.fillRect(0, 0, w, h);
+    l.restore();
+
+    for (const [nx, ny, nrx, nry, rgb, alpha] of regions) {
+      const cx = nx * w, cy = ny * h;
+      const rx = nrx * w, ry = nry * h;
+      for (let pass = 0; pass < 6; pass++) {
+        const pts = buildBlob(
+          cx + (rnd() - 0.5) * rx * 0.05,
+          cy + (rnd() - 0.5) * ry * 0.05,
+          rx, ry, rnd, 0.07 + pass * 0.006, 120
+        );
+        l.save();
+        l.globalAlpha = alpha * (0.45 + rnd() * 0.22);
+        l.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+        l.filter = `blur(${4 + pass * 2}px)`;
+        blobPath(l, pts);
+        l.fill();
+        l.restore();
+      }
+    }
+
+    const bridge = makeLayer(w, h, 0.5);
+    const b = bridge.getContext("2d");
+    b.scale(0.5, 0.5);
+    for (let i = 0; i < 18; i++) {
+      const x = rnd() * w;
+      const y = rnd() * h;
+      const rx = w * (0.08 + rnd() * 0.12);
+      const ry = h * (0.06 + rnd() * 0.1);
+      const rg = b.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+      rg.addColorStop(0, "rgba(243,235,145,.11)");
+      rg.addColorStop(0.55, "rgba(203,216,123,.08)");
+      rg.addColorStop(1, "rgba(203,216,123,0)");
+      b.save();
+      b.translate(x, y);
+      b.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+      b.translate(-x, -y);
+      b.fillStyle = rg;
+      b.beginPath();
+      b.arc(x, y, Math.max(rx, ry), 0, Math.PI * 2);
+      b.fill();
+      b.restore();
+    }
+
+    bctx.save();
+    bctx.globalCompositeOperation = "multiply";
+    bctx.globalAlpha = 0.84;
+    bctx.drawImage(layer, 0, 0);
+    bctx.restore();
+    bctx.save();
+    bctx.globalCompositeOperation = "soft-light";
+    bctx.filter = `blur(${Math.min(w, h) * 0.018}px)`;
+    bctx.drawImage(bridge, 0, 0, w, h);
+    bctx.restore();
+    bctx.filter = "none";
+    bctx.globalAlpha = 1;
+    bctx.globalCompositeOperation = "source-over";
+
+    const pools = makeLayer(w, h, 0.5);
+    const pc = pools.getContext("2d");
+    pc.scale(0.5, 0.5);
+    for (const [nx, ny, nrx, nry] of [
+      [0.29, 0.54, 0.14, 0.11], [0.56, 0.69, 0.21, 0.15],
+      [0.75, 0.43, 0.14, 0.11], [0.44, 0.29, 0.16, 0.11], [0.14, 0.79, 0.11, 0.09]
+    ]) {
+      const x = nx * w, y = ny * h;
+      const rx = nrx * w, ry = nry * h;
+      const pg = pc.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+      pg.addColorStop(0, "rgba(247,238,152,.28)");
+      pg.addColorStop(0.52, "rgba(236,226,136,.12)");
+      pg.addColorStop(1, "rgba(236,226,136,0)");
+      pc.save();
+      pc.translate(x, y);
+      pc.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+      pc.translate(-x, -y);
+      pc.fillStyle = pg;
+      pc.beginPath();
+      pc.arc(x, y, Math.max(rx, ry), 0, Math.PI * 2);
+      pc.fill();
+      pc.restore();
+    }
+    bctx.save();
+    bctx.globalCompositeOperation = "screen";
+    bctx.filter = `blur(${Math.min(w, h) * 0.022}px)`;
+    bctx.drawImage(pools, 0, 0, w, h);
+    bctx.restore();
+    bctx.filter = "none";
+    bctx.globalCompositeOperation = "source-over";
+
+    const scale = 0.28;
+    const noise = makeLayer(w, h, scale);
+    const nctx = noise.getContext("2d");
+    const image = nctx.createImageData(noise.width, noise.height);
+    const data = image.data;
+    for (let y = 0; y < noise.height; y++) {
+      for (let x = 0; x < noise.width; x++) {
+        const i = (y * noise.width + x) * 4;
+        const large = fractalNoise(x / 34, y / 34, rndSeed, 4) - 0.5;
+        const fine = (rnd() - 0.5) * 0.42;
+        const v = 128 + large * 36 + fine * 15;
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 20;
+      }
+    }
+    nctx.putImageData(image, 0, 0);
+    bctx.save();
+    bctx.globalCompositeOperation = "soft-light";
+    bctx.drawImage(noise, 0, 0, w, h);
+    bctx.restore();
+    bctx.globalCompositeOperation = "source-over";
+
+    bctx.save();
+    bctx.globalAlpha = 0.024;
+    const dots = Math.floor((w * h) / 17000);
+    for (let i = 0; i < dots; i++) {
+      const x = rnd() * w;
+      const y = rnd() * h;
+      bctx.fillStyle = rnd() > 0.55 ? "#617d51" : "#f2e893";
+      bctx.beginPath();
+      bctx.arc(x, y, 0.4 + rnd() * 1.9, 0, Math.PI * 2);
+      bctx.fill();
+    }
+    bctx.restore();
+
+    const area = w * h;
+    const count = Math.max(160, Math.min(560, Math.floor(area / 7200)));
+    for (let i = 0; i < count; i++) {
+      const x = rnd() * w;
+      const y = rnd() * h;
+      const density = fractalNoise(x / w * 5.5, y / h * 4.6, rndSeed + 500, 3);
+      if (rnd() > 0.38 + density * 0.42) continue;
+      const size = Math.min(w, h) * (0.005 + rnd() * 0.008);
+      const bright = rnd() < 0.17;
+      const color = bright ? "#efe48b" : "#344a2e";
+      const alpha = bright ? (0.35 + rnd() * 0.18) : (0.5 + rnd() * 0.28);
+      const angle = (rnd() - 0.5) * 0.35;
+      drawGrassGlyph(bctx, x, y, size, angle, color, alpha, rnd);
+      if (!bright && rnd() > 0.72) {
+        drawGrassGlyph(
+          bctx,
+          x + size * (0.35 + rnd() * 0.35),
+          y - size * (0.1 + rnd() * 0.1),
+          size * (0.52 + rnd() * 0.18),
+          angle + (rnd() - 0.5) * 0.25,
+          color,
+          alpha * 0.78,
+          rnd
+        );
+      }
+      if (bright && rnd() > 0.58) {
+        bctx.save();
+        bctx.globalAlpha = 0.32 + rnd() * 0.16;
+        bctx.fillStyle = "#f3ea98";
+        const r = Math.max(1, size * 0.1);
+        bctx.beginPath();
+        bctx.arc(x + size * 0.22, y - size * 0.1, r, 0, Math.PI * 2);
+        bctx.arc(x + size * 0.42, y - size * 0.06, r, 0, Math.PI * 2);
+        bctx.fill();
+        bctx.restore();
+      }
+    }
+
+    const vg = bctx.createRadialGradient(
+      w * 0.54, h * 0.46, Math.min(w, h) * 0.24,
+      w * 0.54, h * 0.46, Math.max(w, h) * 0.8
+    );
+    vg.addColorStop(0, "rgba(64,82,46,0)");
+    vg.addColorStop(0.74, "rgba(66,86,48,.012)");
+    vg.addColorStop(1, "rgba(44,61,35,.10)");
+    bctx.fillStyle = vg;
+    bctx.fillRect(0, 0, w, h);
+  }
+
+  /* ---------- game loop ---------- */
+
+  function fitCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = Math.max(1, window.innerWidth);
+    const cssH = Math.max(1, window.innerHeight);
+    const w = Math.floor(cssW * dpr);
+    const h = Math.floor(cssH * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    return { w, h, dpr, cssW, cssH };
+  }
+
+  function groundY(h) {
+    return h * 0.78;
+  }
+
+  function rebuildBackground(keepPlayer = true) {
+    const { w, h, dpr } = fitCanvas();
+    const prevXRatio = keepPlayer && canvas.width ? player.x / canvas.width : 0.5;
+    bgCanvas = document.createElement("canvas");
+    bgCanvas.width = w;
+    bgCanvas.height = h;
+    paintBackground(bgCanvas, w, h, seed);
+
+    player.scale = Math.min(w, h) / (720 * 3.2);
+    const foot = groundY(h);
+    if (!keepPlayer || !player.x) {
+      player.x = w * 0.5;
+      player.y = foot;
+      player.vx = 0;
+      player.vy = 0;
+    } else {
+      player.x = Math.min(w - 40 * dpr, Math.max(40 * dpr, prevXRatio * w));
+      if (player.onGround) player.y = foot;
+    }
+  }
+
+  function update(dt) {
+    const { w, h } = fitCanvas();
+    const foot = groundY(h);
+    let ax = 0;
+    if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) ax -= 1;
+    if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) ax += 1;
+
+    player.vx = ax * MOVE_SPEED * (canvas.width / Math.max(1, window.innerWidth));
+    if (ax !== 0) player.facing = -ax;
+
+    if ((keys.has(" ") || keys.has("Space") || keys.has("ArrowUp") || keys.has("w") || keys.has("W"))
+      && player.onGround) {
+      player.vy = JUMP_V * (canvas.height / Math.max(1, window.innerHeight));
+      player.onGround = false;
+    }
+
+    player.vy += GRAVITY * (canvas.height / Math.max(1, window.innerHeight)) * dt;
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+
+    const half = (FRAME_W * player.scale) * 0.35;
+    player.x = Math.min(w - half, Math.max(half, player.x));
+
+    if (player.y >= foot) {
+      player.y = foot;
+      player.vy = 0;
+      player.onGround = true;
+    }
+
+    // 默认待机：循环透明序列帧；移动时略加快
+    const fps = IDLE_FPS;
+    player.animT += dt * fps;
+    while (player.animT >= 1) {
+      player.animT -= 1;
+      player.frame = (player.frame + 1) % FRAME_COUNT;
+    }
+  }
+
+  function analyzeImagePivot(img) {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const octx = off.getContext("2d", { willReadFrequently: true });
+    octx.clearRect(0, 0, w, h);
+    octx.drawImage(img, 0, 0);
+    const { data } = octx.getImageData(0, 0, w, h);
+    const ALPHA = 24;
+    let sumX = 0;
+    let sumA = 0;
+    let maxY = 0;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const a = data[(y * w + x) * 4 + 3];
+        if (a <= ALPHA) continue;
+        sumX += x * a;
+        sumA += a;
+        if (y > maxY) maxY = y;
+      }
+    }
+
+    return {
+      comX: sumA > 0 ? sumX / sumA : w * 0.5,
+      bottom: sumA > 0 ? maxY : h - 1
+    };
+  }
+
+  function drawCharacter() {
+    const img = frames[player.frame];
+    if (!img || !img.complete) return;
+    const pivot = framePivots[player.frame] || {
+      comX: (img.naturalWidth || FRAME_W) * 0.5,
+      bottom: (img.naturalHeight || FRAME_H) * 0.92
+    };
+    const fw = img.naturalWidth || FRAME_W;
+    const fh = img.naturalHeight || FRAME_H;
+    const s = player.scale;
+    const dw = fw * s;
+    const dh = fh * s;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(40, 58, 32, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(player.x, player.y - 2, dw * 0.18, dh * 0.04, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.scale(player.facing, 1);
+    ctx.drawImage(img, -pivot.comX * s, -pivot.bottom * s, dw, dh);
+    ctx.restore();
+  }
+
+  function loadFrame(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(src));
+      img.src = src;
+    });
+  }
+
+  function renderFrame(ts) {
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+
+    update(dt);
+
+    const { w, h } = fitCanvas();
+    if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, w, h);
+    else {
+      ctx.fillStyle = "#9db97b";
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    const gy = groundY(h);
+    const band = ctx.createLinearGradient(0, gy - h * 0.08, 0, gy + h * 0.12);
+    band.addColorStop(0, "rgba(52, 74, 46, 0)");
+    band.addColorStop(0.55, "rgba(52, 74, 46, 0.06)");
+    band.addColorStop(1, "rgba(52, 74, 46, 0.12)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, gy - h * 0.08, w, h * 0.2);
+
+    drawCharacter();
+
+    fpsAccum += dt;
+    fpsFrames += 1;
+    if (fpsAccum >= 0.4) {
+      fpsDisplay = Math.round(fpsFrames / fpsAccum);
+      fpsAccum = 0;
+      fpsFrames = 0;
+      statusEl.textContent = `FPS ${fpsDisplay} · frame ${player.frame + 1}/${FRAME_COUNT} · seed ${seed}`;
+    }
+
+    requestAnimationFrame(renderFrame);
+  }
+
+  function onKey(e, down) {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", " ", "a", "A", "d", "D", "w", "W"].includes(e.key)) {
+      e.preventDefault();
+    }
+    if (down) keys.add(e.key);
+    else keys.delete(e.key);
+  }
+
+  window.addEventListener("keydown", (e) => onKey(e, true));
+  window.addEventListener("keyup", (e) => onKey(e, false));
+  window.addEventListener("blur", () => keys.clear());
+
+  regenBtn.addEventListener("click", () => {
+    seed = (Math.random() * 0xffffffff) >>> 0;
+    rebuildBackground(true);
+  });
+
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => rebuildBackground(true), 140);
+  }, { passive: true });
+
+  async function boot() {
+    try {
+      loadingEl.querySelector("span").textContent = "正在加载序列帧…";
+      frames = await Promise.all(FRAME_SRCS.map(loadFrame));
+      framePivots = frames.map(analyzeImagePivot);
+      rebuildBackground(false);
+      loadingEl.classList.add("hidden");
+      requestAnimationFrame(renderFrame);
+    } catch (err) {
+      loadingEl.querySelector("span").textContent = `序列帧加载失败：${err.message || err}`;
+    }
+  }
+
+  boot();
+})();
+  </script>
+</body>
+</html>
