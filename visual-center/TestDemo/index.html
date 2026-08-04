@@ -136,7 +136,7 @@
   <div class="hud">
     <h1>TestDemo · 草地待机</h1>
     <p>
-      角色默认循环播放透明序列帧待机。<br />
+      静止为呼吸 idle，移动时按步幅播 walk。<br />
       <kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移动 ·
       <kbd>空格</kbd> 跳跃
     </p>
@@ -158,8 +158,14 @@
   const FRAME_SRCS = Array.from({ length: FRAME_COUNT }, (_, i) =>
     `sprites-transparent/walk-${String(i).padStart(2, "0")}.png`
   );
-  const IDLE_FPS = 8;
-  const MOVE_SPEED = 220;
+  const IDLE_SRC = "idle.png";
+  /** 参考步频（帧/秒），用于由步幅反推移动速度 */
+  const WALK_FPS = 8;
+  /** 每前进一帧对应的源图像素步幅（越大走得越快） */
+  const STRIDE_SRC = 44;
+  /** 呼吸频率（Hz）与形变量 */
+  const BREATH_HZ = 0.55;
+  const BREATH_SQUASH = 0.022;
   const GRAVITY = 1600;
   const JUMP_V = -520;
 
@@ -174,8 +180,12 @@
   let resizeTimer = 0;
   /** @type {HTMLImageElement[]} */
   let frames = [];
+  /** @type {HTMLImageElement | null} */
+  let idleImg = null;
   /** @type {{ comX: number, bottom: number }[]} */
   let framePivots = [];
+  /** @type {{ comX: number, bottom: number } | null} */
+  let idlePivot = null;
   let lastTs = 0;
   let fpsAccum = 0;
   let fpsFrames = 0;
@@ -189,8 +199,10 @@
     vy: 0,
     facing: -1,
     onGround: true,
+    moving: false,
     frame: 0,
-    animT: 0,
+    animDist: 0,
+    idleT: 0,
     scale: 0.28
   };
 
@@ -585,7 +597,11 @@
     if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) ax -= 1;
     if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) ax += 1;
 
-    player.vx = ax * MOVE_SPEED * (canvas.width / Math.max(1, window.innerWidth));
+    // 步幅 × 参考帧率 → 移动速度，减轻脚滑
+    const strideCanvas = STRIDE_SRC * player.scale;
+    const moveSpeed = strideCanvas * WALK_FPS;
+    player.vx = ax * moveSpeed;
+    player.moving = ax !== 0;
     if (ax !== 0) player.facing = -ax;
 
     if ((keys.has(" ") || keys.has("Space") || keys.has("ArrowUp") || keys.has("w") || keys.has("W"))
@@ -607,12 +623,13 @@
       player.onGround = true;
     }
 
-    // 默认待机：循环透明序列帧；移动时略加快
-    const fps = IDLE_FPS;
-    player.animT += dt * fps;
-    while (player.animT >= 1) {
-      player.animT -= 1;
-      player.frame = (player.frame + 1) % FRAME_COUNT;
+    if (player.moving) {
+      player.animDist += Math.abs(player.vx) * dt;
+      player.frame = Math.floor(player.animDist / strideCanvas) % FRAME_COUNT;
+    } else {
+      // 静止：呼吸 idle，不推进 walk
+      player.idleT += dt;
+      if (ax === 0) player.animDist = player.frame * strideCanvas;
     }
   }
 
@@ -647,18 +664,14 @@
     };
   }
 
-  function drawCharacter() {
-    const img = frames[player.frame];
-    if (!img || !img.complete) return;
-    const pivot = framePivots[player.frame] || {
-      comX: (img.naturalWidth || FRAME_W) * 0.5,
-      bottom: (img.naturalHeight || FRAME_H) * 0.92
-    };
+  function drawSprite(img, pivot, breath) {
     const fw = img.naturalWidth || FRAME_W;
     const fh = img.naturalHeight || FRAME_H;
     const s = player.scale;
     const dw = fw * s;
     const dh = fh * s;
+    const comX = pivot ? pivot.comX : fw * 0.5;
+    const bottom = pivot ? pivot.bottom : fh * 0.92;
 
     ctx.save();
     ctx.fillStyle = "rgba(40, 58, 32, 0.28)";
@@ -670,8 +683,26 @@
     ctx.save();
     ctx.translate(player.x, player.y);
     ctx.scale(player.facing, 1);
-    ctx.drawImage(img, -pivot.comX * s, -pivot.bottom * s, dw, dh);
+    if (breath) {
+      // 以脚底为锚的轻微弹簧呼吸：纵向拉伸、横向补偿
+      const wave = Math.sin(player.idleT * Math.PI * 2 * BREATH_HZ);
+      const sy = 1 + wave * BREATH_SQUASH;
+      const sx = 1 - wave * BREATH_SQUASH * 0.55;
+      ctx.scale(sx, sy);
+    }
+    ctx.drawImage(img, -comX * s, -bottom * s, dw, dh);
     ctx.restore();
+  }
+
+  function drawCharacter() {
+    if (player.moving) {
+      const img = frames[player.frame];
+      if (!img || !img.complete) return;
+      drawSprite(img, framePivots[player.frame], false);
+      return;
+    }
+    if (!idleImg || !idleImg.complete) return;
+    drawSprite(idleImg, idlePivot, true);
   }
 
   function loadFrame(src) {
@@ -714,7 +745,9 @@
       fpsDisplay = Math.round(fpsFrames / fpsAccum);
       fpsAccum = 0;
       fpsFrames = 0;
-      statusEl.textContent = `FPS ${fpsDisplay} · frame ${player.frame + 1}/${FRAME_COUNT} · seed ${seed}`;
+      statusEl.textContent = player.moving
+        ? `FPS ${fpsDisplay} · walk ${player.frame + 1}/${FRAME_COUNT} · seed ${seed}`
+        : `FPS ${fpsDisplay} · idle breath · seed ${seed}`;
     }
 
     requestAnimationFrame(renderFrame);
@@ -744,14 +777,17 @@
 
   async function boot() {
     try {
-      loadingEl.querySelector("span").textContent = "正在加载序列帧…";
-      frames = await Promise.all(FRAME_SRCS.map(loadFrame));
+      loadingEl.querySelector("span").textContent = "正在加载角色资源…";
+      const loaded = await Promise.all([loadFrame(IDLE_SRC), ...FRAME_SRCS.map(loadFrame)]);
+      idleImg = loaded[0];
+      frames = loaded.slice(1);
+      idlePivot = analyzeImagePivot(idleImg);
       framePivots = frames.map(analyzeImagePivot);
       rebuildBackground(false);
       loadingEl.classList.add("hidden");
       requestAnimationFrame(renderFrame);
     } catch (err) {
-      loadingEl.querySelector("span").textContent = `序列帧加载失败：${err.message || err}`;
+      loadingEl.querySelector("span").textContent = `资源加载失败：${err.message || err}`;
     }
   }
 

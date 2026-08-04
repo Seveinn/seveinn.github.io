@@ -69,7 +69,7 @@
       "title": "TestDemo · 草地待机",
       "path": "TestDemo/index.html",
       "category": "演示与游戏",
-      "description": "程序化水彩草地背景 + 透明序列帧待机动画",
+      "description": "水彩草地 + 呼吸 idle + 步幅同步 walk",
       "openMode": "iframe"
     }
   ]
