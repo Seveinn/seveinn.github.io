@@ -43,6 +43,70 @@
       box-shadow: 0 14px 30px rgba(22, 32, 15, 0.18);
       pointer-events: none;
       max-width: min(320px, calc(100vw - 36px));
+      z-index: 5;
+    }
+    .debug-bar {
+      position: fixed;
+      left: 50%;
+      top: 14px;
+      transform: translateX(-50%);
+      z-index: 6;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 16px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(36, 52, 28, 0.55);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 28px rgba(22, 32, 15, 0.16);
+      max-width: min(720px, calc(100vw - 36px));
+      font-size: 0.8rem;
+      font-weight: 700;
+      user-select: none;
+    }
+    .debug-bar .dbg-title {
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+    }
+    .debug-bar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .debug-bar input[type="range"] {
+      width: min(160px, 28vw);
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .debug-bar input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .debug-bar .dbg-val {
+      min-width: 3.2em;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+    }
+    .debug-bar button {
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--cream);
+      background: rgba(255, 255, 255, 0.13);
+      cursor: pointer;
+      font: 700 12px/1 "Nunito", system-ui, sans-serif;
+    }
+    .debug-bar button:hover { background: rgba(255, 255, 255, 0.22); }
+    @media (max-width: 720px) {
+      .hud { top: 88px; }
+      .debug-bar { left: 18px; right: 18px; transform: none; max-width: none; }
     }
     .hud h1 {
       margin: 0;
@@ -133,6 +197,30 @@
   <div class="loading" id="loading"><span>正在铺开草地…</span></div>
   <canvas id="game" aria-label="TestDemo 草地待机场景"></canvas>
 
+  <div class="debug-bar" id="debugBar">
+    <span class="dbg-title">Debug</span>
+    <label title="同时驱动 walk 帧推进与移动速度（步幅同步）">
+      Walk FPS
+      <input type="range" id="walkFpsRange" min="1" max="24" step="1" value="8" />
+      <span class="dbg-val" id="walkFpsVal">8</span>
+    </label>
+    <label title="每帧对应的源像素步幅，影响移动快慢与脚滑">
+      Stride
+      <input type="range" id="strideRange" min="16" max="96" step="1" value="44" />
+      <span class="dbg-val" id="strideVal">44</span>
+    </label>
+    <label title="角色绘制缩放（相对自适应基准）">
+      Scale
+      <input type="range" id="scaleRange" min="0.4" max="2.5" step="0.05" value="1" />
+      <span class="dbg-val" id="scaleVal">1.00×</span>
+    </label>
+    <label title="原地循环播放 walk，方便调帧率">
+      <input type="checkbox" id="previewWalk" />
+      原地预览 walk
+    </label>
+    <button type="button" id="resetDebug" title="恢复默认 Walk FPS / Stride">重置</button>
+  </div>
+
   <div class="hud">
     <h1>TestDemo · 草地待机</h1>
     <p>
@@ -159,10 +247,11 @@
     `sprites-transparent/walk-${String(i).padStart(2, "0")}.png`
   );
   const IDLE_SRC = "idle.png";
-  /** 参考步频（帧/秒），用于由步幅反推移动速度 */
-  const WALK_FPS = 8;
-  /** 每前进一帧对应的源图像素步幅（越大走得越快） */
-  const STRIDE_SRC = 44;
+  const DEFAULT_WALK_FPS = 8;
+  const DEFAULT_STRIDE_SRC = 44;
+  const DEFAULT_SCALE_MUL = 1;
+  /** 按下方向时 walk 起始帧（walk-01.png） */
+  const WALK_START = 1;
   /** 呼吸频率（Hz）与形变量 */
   const BREATH_HZ = 0.55;
   const BREATH_SQUASH = 0.022;
@@ -174,7 +263,19 @@
   const statusEl = document.getElementById("status");
   const loadingEl = document.getElementById("loading");
   const regenBtn = document.getElementById("regen");
+  const walkFpsRange = document.getElementById("walkFpsRange");
+  const walkFpsVal = document.getElementById("walkFpsVal");
+  const strideRange = document.getElementById("strideRange");
+  const strideVal = document.getElementById("strideVal");
+  const scaleRange = document.getElementById("scaleRange");
+  const scaleVal = document.getElementById("scaleVal");
+  const previewWalkEl = document.getElementById("previewWalk");
+  const resetDebugBtn = document.getElementById("resetDebug");
 
+  let walkFps = DEFAULT_WALK_FPS;
+  let strideSrc = DEFAULT_STRIDE_SRC;
+  let scaleMul = DEFAULT_SCALE_MUL;
+  let previewWalk = false;
   let seed = 20260805;
   let bgCanvas = null;
   let resizeTimer = 0;
@@ -577,7 +678,7 @@
     bgCanvas.height = h;
     paintBackground(bgCanvas, w, h, seed);
 
-    player.scale = Math.min(w, h) / (720 * 3.2);
+    player.scale = (Math.min(w, h) / (720 * 3.2)) * scaleMul;
     const foot = groundY(h);
     if (!keepPlayer || !player.x) {
       player.x = w * 0.5;
@@ -597,11 +698,18 @@
     if (keys.has("ArrowLeft") || keys.has("a") || keys.has("A")) ax -= 1;
     if (keys.has("ArrowRight") || keys.has("d") || keys.has("D")) ax += 1;
 
-    // 步幅 × 参考帧率 → 移动速度，减轻脚滑
-    const strideCanvas = STRIDE_SRC * player.scale;
-    const moveSpeed = strideCanvas * WALK_FPS;
+    // 步幅 × 参考帧率 → 移动速度，减轻脚滑（可由顶部 Debug 调节）
+    const strideCanvas = strideSrc * player.scale;
+    const moveSpeed = strideCanvas * walkFps;
     player.vx = ax * moveSpeed;
-    player.moving = ax !== 0;
+
+    const moving = ax !== 0 || previewWalk;
+    if (moving && !player.moving) {
+      // 刚进入 walk：从 walk-01 起播
+      player.animDist = 0;
+      player.frame = WALK_START;
+    }
+    player.moving = moving;
     if (ax !== 0) player.facing = -ax;
 
     if ((keys.has(" ") || keys.has("Space") || keys.has("ArrowUp") || keys.has("w") || keys.has("W"))
@@ -624,12 +732,15 @@
     }
 
     if (player.moving) {
-      player.animDist += Math.abs(player.vx) * dt;
-      player.frame = Math.floor(player.animDist / strideCanvas) % FRAME_COUNT;
+      if (previewWalk && ax === 0) {
+        // 原地预览：按设定帧率推进，不依赖位移
+        player.animDist += walkFps * strideCanvas * dt;
+      } else {
+        player.animDist += Math.abs(player.vx) * dt;
+      }
+      player.frame = (WALK_START + Math.floor(player.animDist / strideCanvas)) % FRAME_COUNT;
     } else {
-      // 静止：呼吸 idle，不推进 walk
       player.idleT += dt;
-      if (ax === 0) player.animDist = player.frame * strideCanvas;
     }
   }
 
@@ -745,8 +856,9 @@
       fpsDisplay = Math.round(fpsFrames / fpsAccum);
       fpsAccum = 0;
       fpsFrames = 0;
+      const dirHeld = keys.has("ArrowLeft") || keys.has("ArrowRight") || keys.has("a") || keys.has("A") || keys.has("d") || keys.has("D");
       statusEl.textContent = player.moving
-        ? `FPS ${fpsDisplay} · walk ${player.frame + 1}/${FRAME_COUNT} · seed ${seed}`
+        ? `FPS ${fpsDisplay} · walk-${String(player.frame).padStart(2, "0")} @ ${walkFps}fps · stride ${strideSrc}${previewWalk && !dirHeld ? " · preview" : ""} · seed ${seed}`
         : `FPS ${fpsDisplay} · idle breath · seed ${seed}`;
     }
 
@@ -769,6 +881,52 @@
     seed = (Math.random() * 0xffffffff) >>> 0;
     rebuildBackground(true);
   });
+
+  function applyCharacterScale() {
+    if (!canvas.width || !canvas.height) return;
+    player.scale = (Math.min(canvas.width, canvas.height) / (720 * 3.2)) * scaleMul;
+  }
+
+  function syncDebugLabels() {
+    walkFpsVal.textContent = String(walkFps);
+    strideVal.textContent = String(strideSrc);
+    scaleVal.textContent = `${scaleMul.toFixed(2)}×`;
+  }
+
+  walkFpsRange.addEventListener("input", () => {
+    walkFps = Number(walkFpsRange.value) || DEFAULT_WALK_FPS;
+    syncDebugLabels();
+  });
+  strideRange.addEventListener("input", () => {
+    strideSrc = Number(strideRange.value) || DEFAULT_STRIDE_SRC;
+    syncDebugLabels();
+  });
+  scaleRange.addEventListener("input", () => {
+    scaleMul = Number(scaleRange.value) || DEFAULT_SCALE_MUL;
+    applyCharacterScale();
+    syncDebugLabels();
+  });
+  previewWalkEl.addEventListener("change", () => {
+    previewWalk = previewWalkEl.checked;
+    if (previewWalk) {
+      player.animDist = 0;
+      player.frame = WALK_START;
+      player.moving = true;
+    }
+  });
+  resetDebugBtn.addEventListener("click", () => {
+    walkFps = DEFAULT_WALK_FPS;
+    strideSrc = DEFAULT_STRIDE_SRC;
+    scaleMul = DEFAULT_SCALE_MUL;
+    previewWalk = false;
+    walkFpsRange.value = String(DEFAULT_WALK_FPS);
+    strideRange.value = String(DEFAULT_STRIDE_SRC);
+    scaleRange.value = String(DEFAULT_SCALE_MUL);
+    previewWalkEl.checked = false;
+    applyCharacterScale();
+    syncDebugLabels();
+  });
+  syncDebugLabels();
 
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
