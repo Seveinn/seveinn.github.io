@@ -14,32 +14,45 @@ export function setCompareHandler(fn) {
   onCompare = fn;
 }
 
+function syncStageBuffer() {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(1, stageWrap.clientWidth);
+  const cssH = Math.max(1, stageWrap.clientHeight);
+  const w = Math.max(1, Math.round(cssW * dpr));
+  const h = Math.max(1, Math.round(cssH * dpr));
+  if (stage.width !== w || stage.height !== h) {
+    stage.width = w;
+    stage.height = h;
+  }
+  return { w, h, dpr };
+}
+
 export function updateCanvasSize() {
-  if (!state.items.length) return;
-  const src = frameSource(state.items[0]);
-  stage.width = src.width;
-  stage.height = src.height;
+  syncStageBuffer();
 }
 
 export function renderFrame() {
+  const { w: viewW, h: viewH } = syncStageBuffer();
+  stageCtx.setTransform(1, 0, 0, 1, 0, 0);
+  stageCtx.clearRect(0, 0, viewW, viewH);
+
   if (!state.items.length) {
-    stageCtx.clearRect(0, 0, stage.width, stage.height);
     hudInfo.textContent = `FPS: ${state.fps} · 帧: 0/0`;
     return;
   }
+
   const item = state.items[state.currentFrame];
   const src = frameSource(item);
-  if (stage.width !== src.width || stage.height !== src.height) {
-    stage.width = src.width;
-    stage.height = src.height;
-  }
-  stageCtx.clearRect(0, 0, stage.width, stage.height);
+  const scale = Math.min(viewW / src.width, viewH / src.height);
+  const dw = src.width * scale;
+  const dh = src.height * scale;
+  const dx = (viewW - dw) / 2;
+  const dy = (viewH - dh) / 2;
+
   stageCtx.save();
-  if (state.flipX) {
-    stageCtx.translate(stage.width, 0);
-    stageCtx.scale(-1, 1);
-  }
-  stageCtx.drawImage(src, 0, 0);
+  stageCtx.translate(dx + dw / 2, dy + dh / 2);
+  if (state.flipX) stageCtx.scale(-1, 1);
+  stageCtx.drawImage(src, -dw / 2, -dh / 2, dw, dh);
   stageCtx.restore();
 
   const tag = item.processed ? "抠图" : "原图";
@@ -140,6 +153,12 @@ export async function openCompare(index, processItem, updateButtons) {
 }
 
 export function startAnimLoop() {
+  const ro = new ResizeObserver(() => {
+    if (state.items.length) renderFrame();
+    else syncStageBuffer();
+  });
+  ro.observe(stageWrap);
+
   function loop(timestamp) {
     tickAnimation(timestamp, state, () => {
       const { stopped } = advanceFrame(state);

@@ -114,6 +114,9 @@ export async function addFiles(fileList) {
   state.currentFrame = 0;
   state.direction = 1;
   state.selectedId = state.items[0]?.id || null;
+  state.isPlaying = false;
+  state.lastFrameTime = 0;
+  $("#playBtn").textContent = "播放";
   updateCanvasSize();
   renderTimeline();
   renderFrame();
@@ -145,11 +148,9 @@ export function clearFrames() {
   state.items = [];
   state.selectedId = null;
   state.currentFrame = 0;
-  state.isPlaying = true;
-  $("#playBtn").textContent = "暂停";
-  const stage = $("#stage");
-  stage.width = 0;
-  stage.height = 0;
+  state.isPlaying = false;
+  state.lastFrameTime = 0;
+  $("#playBtn").textContent = "播放";
   stageEmpty.style.display = "";
   renderTimeline();
   renderFrame();

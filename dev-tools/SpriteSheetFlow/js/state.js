@@ -18,7 +18,7 @@ export const state = {
   manualBg: [230, 230, 229],
   autoSample: true,
   currentFrame: 0,
-  isPlaying: true,
+  isPlaying: false,
   fps: 12,
   speed: 1,
   extraDelay: 0,
