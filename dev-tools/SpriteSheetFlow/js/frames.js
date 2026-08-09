@@ -1,13 +1,92 @@
-import { state, $, frameSource } from "./state.js";
-import { removeBackground, sampleBgFromImageData } from "./remove-bg.js";
+import { state, $, frameSource, cloneCanvas } from "./state.js";
+import {
+  removeBackground,
+  sampleBgFromImageData,
+  applyEraseMask,
+  spotEraseLocal,
+} from "./remove-bg.js";
 import { renderFrame, renderTimeline, updateCanvasSize } from "./preview.js";
 
 const statusEl = $("#status");
 const progressBar = $("#progressBar");
 const stageEmpty = $("#stageEmpty");
 
+const MAX_HISTORY = 40;
+/** @type {{ label: string, currentFrame: number, frames: ReturnType<typeof snapshotFrame>[] }[]} */
+let history = [];
+let paramHistoryArmed = true;
+
 export function setStatus(t) {
   statusEl.textContent = t;
+}
+
+function snapshotFrame(item) {
+  return {
+    id: item.id,
+    processed: item.processed,
+    bg: item.bg ? item.bg.slice() : null,
+    eraseMask: item.eraseMask ? new Uint8Array(item.eraseMask) : null,
+    resultCanvas: item.resultCanvas ? cloneCanvas(item.resultCanvas) : null,
+  };
+}
+
+function restoreFrame(item, snap) {
+  item.processed = snap.processed;
+  item.bg = snap.bg ? snap.bg.slice() : null;
+  item.eraseMask = snap.eraseMask ? new Uint8Array(snap.eraseMask) : null;
+  item.resultCanvas = snap.resultCanvas ? cloneCanvas(snap.resultCanvas) : null;
+}
+
+/** @param {string} label @param {import("./state.js").FrameItem[] | null} [items] */
+export function pushHistory(label, items = null) {
+  const list = items || state.items;
+  if (!list.length) return;
+  history.push({
+    label,
+    currentFrame: state.currentFrame,
+    frames: list.map(snapshotFrame),
+  });
+  if (history.length > MAX_HISTORY) history.shift();
+  updateButtons();
+}
+
+export function clearHistory() {
+  history = [];
+  paramHistoryArmed = true;
+  updateButtons();
+}
+
+export function canUndo() {
+  return history.length > 0;
+}
+
+export function undoLast() {
+  const entry = history.pop();
+  if (!entry) {
+    setStatus("没有可撤销的操作");
+    updateButtons();
+    return false;
+  }
+
+  const byId = new Map(state.items.map((item) => [item.id, item]));
+  for (const snap of entry.frames) {
+    const item = byId.get(snap.id);
+    if (item) restoreFrame(item, snap);
+  }
+
+  if (entry.currentFrame >= 0 && entry.currentFrame < state.items.length) {
+    state.currentFrame = entry.currentFrame;
+    state.selectedId = state.items[state.currentFrame]?.id || null;
+  }
+
+  const bgItem = state.items[state.currentFrame];
+  if (bgItem?.bg) setBgSwatch(bgItem.bg);
+
+  renderTimeline();
+  renderFrame();
+  updateButtons();
+  setStatus(`已撤销 · ${entry.label}`);
+  return true;
 }
 
 export function params() {
@@ -28,6 +107,11 @@ export function updateButtons() {
   $("#btnClear").disabled = n === 0;
   $("#btnReprocessSel").disabled = n === 0;
   $("#btnCompare").disabled = n === 0;
+  const undoBtn = $("#btnUndo");
+  if (undoBtn) undoBtn.disabled = history.length === 0;
+  const spotOff = n === 0;
+  $("#btnSpotErase").disabled = spotOff;
+  $("#btnSpotEraseBar").disabled = spotOff;
 }
 
 export function setBgSwatch(rgb) {
@@ -47,6 +131,7 @@ function resolveBg(item) {
 
 export async function processItem(item) {
   const { canvas, bg: used } = removeBackground(item.sourceCanvas, params(), resolveBg(item));
+  applyEraseMask(canvas, item.eraseMask);
   item.resultCanvas = canvas;
   item.processed = true;
   item.bg = used;
@@ -54,8 +139,68 @@ export async function processItem(item) {
   return item;
 }
 
+export function spotParams() {
+  const mode = /** @type {"boundary" | "range"} */ ($("#spotMode")?.value || "boundary");
+  const tol = mode === "range"
+    ? +($("#spotTolRange")?.value || 36)
+    : +($("#spotTolBoundary")?.value || 200);
+  return {
+    mode,
+    tol,
+    radius: +($("#spotRadius")?.value || 36),
+  };
+}
+
+/** 在当前帧结果上点选扣除；必要时先跑一遍抠图。 */
+export async function applySpotEraseAt(imageX, imageY) {
+  const item = state.items[state.currentFrame];
+  if (!item) return { erased: 0 };
+
+  const before = snapshotFrame(item);
+  const opts = spotParams();
+
+  if (!item.processed || !item.resultCanvas) {
+    await processItem(item);
+  }
+
+  const { erased, eraseMask } = spotEraseLocal(
+    item.resultCanvas,
+    imageX,
+    imageY,
+    opts,
+    item.eraseMask,
+  );
+
+  if (erased <= 0) {
+    restoreFrame(item, before);
+    renderTimeline();
+    renderFrame();
+    updateButtons();
+    setStatus("此处无可扣像素（已透明或色差过大）");
+    return { erased };
+  }
+
+  history.push({
+    label: "点选扣除",
+    currentFrame: state.currentFrame,
+    frames: [before],
+  });
+  if (history.length > MAX_HISTORY) history.shift();
+
+  item.eraseMask = eraseMask;
+  item.processed = true;
+  updateButtons();
+  renderTimeline();
+  renderFrame();
+  const modeLabel = opts.mode === "range" ? "范围" : "边界";
+  const extra = opts.mode === "range" ? ` · 半径 ${opts.radius}` : "";
+  setStatus(`${modeLabel}同色扣除 ${erased} 像素 · 容差 ${opts.tol}${extra}`);
+  return { erased };
+}
+
 export async function processAll() {
   if (!state.items.length) return;
+  pushHistory("处理全部抠图");
   $("#btnProcess").disabled = true;
   const n = state.items.length;
   for (let i = 0; i < n; i++) {
@@ -88,6 +233,7 @@ async function loadFile(file) {
     resultCanvas: null,
     processed: false,
     bg: null,
+    eraseMask: null,
   };
 }
 
@@ -117,6 +263,7 @@ export async function addFiles(fileList) {
   state.isPlaying = false;
   state.lastFrameTime = 0;
   $("#playBtn").textContent = "播放";
+  clearHistory();
   updateCanvasSize();
   renderTimeline();
   renderFrame();
@@ -151,6 +298,7 @@ export function clearFrames() {
   state.isPlaying = false;
   state.lastFrameTime = 0;
   $("#playBtn").textContent = "播放";
+  clearHistory();
   stageEmpty.style.display = "";
   renderTimeline();
   renderFrame();
@@ -172,6 +320,12 @@ export function schedulePreviewSelected() {
     const item = state.items[state.currentFrame];
     if (!item) return;
 
+    if (paramHistoryArmed) {
+      const touched = state.items.filter((it) => it.processed || it === item);
+      pushHistory("参数调整", touched.length ? touched : [item]);
+      paramHistoryArmed = false;
+    }
+
     processItem(item);
     renderFrame();
     renderTimeline();
@@ -182,7 +336,9 @@ export function schedulePreviewSelected() {
     clearTimeout(othersTimer);
     othersTimer = setTimeout(() => {
       if (gen !== previewGen) return;
-      void reprocessOtherFrames(gen);
+      void reprocessOtherFrames(gen).finally(() => {
+        if (gen === previewGen) paramHistoryArmed = true;
+      });
     }, 160);
   });
 }

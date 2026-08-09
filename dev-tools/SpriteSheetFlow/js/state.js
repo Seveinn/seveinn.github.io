@@ -7,6 +7,7 @@
  *  resultCanvas: HTMLCanvasElement | null,
  *  processed: boolean,
  *  bg: number[] | null,
+ *  eraseMask: Uint8Array | null,
  * }} FrameItem */
 
 export const state = {
@@ -14,6 +15,8 @@ export const state = {
   items: [],
   selectedId: null,
   previewBg: "checker",
+  /** 预览画布相对「适配」的缩放，1 = 100% */
+  previewScale: 1,
   useManualBg: false,
   manualBg: [230, 230, 229],
   autoSample: true,
@@ -26,6 +29,8 @@ export const state = {
   direction: 1,
   flipX: false,
   lastFrameTime: 0,
+  /** 点选局部扣除模式 */
+  spotErase: false,
 };
 
 export const $ = (sel) => document.querySelector(sel);

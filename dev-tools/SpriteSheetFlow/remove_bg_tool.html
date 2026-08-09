@@ -61,6 +61,28 @@
               <div class="param-head"><label for="soft">软边 SOFT</label><output id="softOut">0</output></div>
               <input type="range" id="soft" min="0" max="40" step="1" value="0" />
             </div>
+            <div class="param spot-tools">
+              <div class="param-head">
+                <label>残留色卡</label>
+                <button type="button" id="btnSpotErase" class="spot-toggle" title="开启点选扣除">点选扣除</button>
+              </div>
+              <div class="param-head"><label for="spotMode">扣除模式</label></div>
+              <select id="spotMode">
+                <option value="boundary">边界模式</option>
+                <option value="range">范围模式</option>
+              </select>
+              <div class="spot-tol-wrap" id="spotTolBoundaryWrap">
+                <div class="param-head" style="margin-top:8px"><label for="spotTolBoundary">边界容差</label><output id="spotTolBoundaryOut">200</output></div>
+                <input type="range" id="spotTolBoundary" min="200" max="400" step="10" value="200" />
+              </div>
+              <div class="spot-tol-wrap" id="spotTolRangeWrap" hidden>
+                <div class="param-head" style="margin-top:8px"><label for="spotTolRange">范围容差</label><output id="spotTolRangeOut">36</output></div>
+                <input type="range" id="spotTolRange" min="4" max="120" step="1" value="36" />
+                <div class="param-head" style="margin-top:8px"><label for="spotRadius">范围半径</label><output id="spotRadiusOut">36</output></div>
+                <input type="range" id="spotRadius" min="8" max="160" step="1" value="36" />
+              </div>
+              <p class="hint" id="spotModeHint">边界模式：沿同色连通区域扣除，异色边框会拦住扩展</p>
+            </div>
           </div>
         </div>
         <div class="tab-panel" id="tab-anim" role="tabpanel" hidden>
@@ -109,8 +131,11 @@
         <button type="button" class="dark" data-bg="dark" title="黑底"></button>
         <button type="button" class="light" data-bg="light" title="浅底"></button>
       </div>
-      <button type="button" id="btnReprocessSel" disabled>重算当前帧</button>
-      <button type="button" id="btnCompare" disabled>对比抠图</button>
+      <div class="canvas-size" title="调整预览画布显示大小">
+        <label for="canvasSize">画布 <output id="canvasSizeOut">100%</output></label>
+        <input type="range" id="canvasSize" min="60" max="200" step="1" value="100" />
+        <button type="button" id="btnCanvasFit" class="ghost" title="重置为适配预览区">适配</button>
+      </div>
       <button type="button" class="primary" id="btnProcess" disabled>处理全部抠图</button>
       <button type="button" class="accent" id="exportBtn" disabled>合成 Sprite Sheet</button>
       <button type="button" id="btnDownload" disabled>下载透明帧 ZIP</button>
@@ -120,10 +145,21 @@
     <div class="progress"><i id="progressBar"></i></div>
 
     <div class="workspace">
-      <div class="stage-wrap checker" id="stageWrap">
-        <div class="hud" id="hudInfo">FPS: 12 · 帧: 0/0</div>
-        <canvas id="stage"></canvas>
-        <div class="stage-empty" id="stageEmpty">导入序列帧后在此预览动画</div>
+      <div class="stage-panel">
+        <div class="stage-tools" id="stageTools">
+          <div class="stage-tools-handle" id="stageToolsHandle" title="拖拽移动工具条" aria-label="拖拽移动工具条">
+            <span></span><span></span>
+          </div>
+          <button type="button" id="btnSpotEraseBar" class="spot-toggle" disabled title="点击清除连通同色区域，异色边框外不受影响">点选扣除</button>
+          <button type="button" id="btnUndo" disabled title="撤销上一步抠图/点选扣除等操作（Ctrl+Z）">撤销</button>
+          <button type="button" id="btnReprocessSel" disabled title="按当前参数重算当前帧">重算</button>
+          <button type="button" id="btnCompare" disabled title="对比原图与抠图结果">对比</button>
+        </div>
+        <div class="stage-wrap checker" id="stageWrap">
+          <div class="hud" id="hudInfo">FPS: 12 · 帧: 0/0</div>
+          <canvas id="stage"></canvas>
+          <div class="stage-empty" id="stageEmpty">导入序列帧后在此预览动画</div>
+        </div>
       </div>
       <div class="timeline" id="timeline">
         <div class="hint-empty">时间轴：导入图片后显示各帧缩略图</div>
