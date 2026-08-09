@@ -41,6 +41,23 @@ bindParam("inset", "insetOut");
 bindParam("fringe", "fringeOut");
 bindParam("soft", "softOut");
 
+const sideTabs = $("#sideTabs");
+sideTabs.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const name = tab.dataset.tab;
+    sideTabs.querySelectorAll(".tab").forEach((t) => {
+      const on = t === tab;
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    sideTabs.querySelectorAll(".tab-panel").forEach((panel) => {
+      const on = panel.id === `tab-${name}`;
+      panel.classList.toggle("active", on);
+      panel.hidden = !on;
+    });
+  });
+});
+
 setCompareHandler((idx) => openCompare(idx, processItem, updateButtons));
 
 function refreshSheet() {

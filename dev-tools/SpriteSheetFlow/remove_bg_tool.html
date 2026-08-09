@@ -35,73 +35,69 @@
       </div>
     </div>
 
-    <details class="block" open>
-      <summary>抠图参数</summary>
-      <div class="inner params">
-        <div class="param">
-          <div class="param-head"><label for="tol">容差 TOL</label><output id="tolOut">42</output></div>
-          <input type="range" id="tol" min="0" max="120" step="1" value="42" />
-          <p class="hint">与背景色 RGB 距离阈值</p>
+    <div class="panel-tabs" id="sideTabs">
+      <div class="tab-bar" role="tablist">
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="matting">抠图参数</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="anim">动画播放</button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel active" id="tab-matting" role="tabpanel">
+          <div class="params">
+            <div class="param">
+              <div class="param-head"><label for="tol">容差 TOL</label><output id="tolOut">42</output></div>
+              <input type="range" id="tol" min="0" max="120" step="1" value="42" />
+              <p class="hint">与背景色 RGB 距离阈值</p>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="inset">向内抠 INSET</label><output id="insetOut">5</output></div>
+              <input type="range" id="inset" min="0" max="20" step="1" value="5" />
+              <p class="hint">腐蚀轮廓，去掉白边</p>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="fringe">去白边 FRINGE</label><output id="fringeOut">55</output></div>
+              <input type="range" id="fringe" min="0" max="120" step="1" value="55" />
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="soft">软边 SOFT</label><output id="softOut">0</output></div>
+              <input type="range" id="soft" min="0" max="40" step="1" value="0" />
+            </div>
+          </div>
         </div>
-        <div class="param">
-          <div class="param-head"><label for="inset">向内抠 INSET</label><output id="insetOut">5</output></div>
-          <input type="range" id="inset" min="0" max="20" step="1" value="5" />
-          <p class="hint">腐蚀轮廓，去掉白边</p>
-        </div>
-        <div class="param">
-          <div class="param-head"><label for="fringe">去白边 FRINGE</label><output id="fringeOut">55</output></div>
-          <input type="range" id="fringe" min="0" max="120" step="1" value="55" />
-        </div>
-        <div class="param">
-          <div class="param-head"><label for="soft">软边 SOFT</label><output id="softOut">0</output></div>
-          <input type="range" id="soft" min="0" max="40" step="1" value="0" />
+        <div class="tab-panel" id="tab-anim" role="tabpanel" hidden>
+          <div class="btn-row" style="margin-bottom:10px">
+            <button type="button" id="playBtn">暂停</button>
+            <button type="button" id="prevBtn">上一帧</button>
+            <button type="button" id="nextBtn">下一帧</button>
+          </div>
+          <div class="field">
+            <label>播放模式</label>
+            <select id="playMode">
+              <option value="loop">循环 Loop</option>
+              <option value="pingpong">乒乓 Ping-Pong</option>
+              <option value="once">单次 Once</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>镜像 Flip X</label>
+            <select id="flipX">
+              <option value="false">正常</option>
+              <option value="true">水平翻转</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>目标帧率 FPS <output id="fpsVal">12</output></label>
+            <input type="range" id="fpsRange" min="1" max="60" value="12" />
+          </div>
+          <div class="field">
+            <label>播放速率 <output id="speedVal">1.0x</output></label>
+            <input type="range" id="speedRange" min="0.1" max="3" step="0.1" value="1" />
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>每帧额外延迟 <output id="delayVal">0 ms</output></label>
+            <input type="range" id="delayRange" min="0" max="500" step="10" value="0" />
+          </div>
         </div>
       </div>
-    </details>
-
-    <details class="block" open>
-      <summary>动画播放</summary>
-      <div class="inner">
-        <div class="btn-row" style="margin-bottom:10px">
-          <button type="button" id="playBtn">暂停</button>
-          <button type="button" id="prevBtn">上一帧</button>
-          <button type="button" id="nextBtn">下一帧</button>
-        </div>
-        <div class="field">
-          <label>播放模式</label>
-          <select id="playMode">
-            <option value="loop">循环 Loop</option>
-            <option value="pingpong">乒乓 Ping-Pong</option>
-            <option value="once">单次 Once</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>镜像 Flip X</label>
-          <select id="flipX">
-            <option value="false">正常</option>
-            <option value="true">水平翻转</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>目标帧率 FPS <output id="fpsVal">12</output></label>
-          <input type="range" id="fpsRange" min="1" max="60" value="12" />
-        </div>
-        <div class="field">
-          <label>播放速率 <output id="speedVal">1.0x</output></label>
-          <input type="range" id="speedRange" min="0.1" max="3" step="0.1" value="1" />
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label>每帧额外延迟 <output id="delayVal">0 ms</output></label>
-          <input type="range" id="delayRange" min="0" max="500" step="10" value="0" />
-        </div>
-      </div>
-    </details>
-
-    <div class="actions">
-      <button type="button" class="primary" id="btnProcess" disabled>处理全部抠图</button>
-      <button type="button" class="accent" id="exportBtn" disabled>合成 Sprite Sheet</button>
-      <button type="button" id="btnDownload" disabled>下载透明帧 ZIP</button>
-      <button type="button" class="ghost" id="btnClear" disabled>清空列表</button>
     </div>
   </aside>
 
@@ -115,6 +111,10 @@
       </div>
       <button type="button" id="btnReprocessSel" disabled>重算当前帧</button>
       <button type="button" id="btnCompare" disabled>对比抠图</button>
+      <button type="button" class="primary" id="btnProcess" disabled>处理全部抠图</button>
+      <button type="button" class="accent" id="exportBtn" disabled>合成 Sprite Sheet</button>
+      <button type="button" id="btnDownload" disabled>下载透明帧 ZIP</button>
+      <button type="button" class="ghost" id="btnClear" disabled>清空列表</button>
       <div class="status" id="status">未导入图片</div>
     </div>
     <div class="progress"><i id="progressBar"></i></div>
