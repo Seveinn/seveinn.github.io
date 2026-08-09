@@ -158,16 +158,55 @@ export function clearFrames() {
   updateButtons();
 }
 
-let previewTimer = null;
+let previewRaf = 0;
+let previewGen = 0;
+let othersTimer = null;
+
+/** 参数拖动时：当前帧跟手重算；已处理的其他帧在停手后同步。 */
 export function schedulePreviewSelected() {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(async () => {
+  if (!state.items.length) return;
+  if (previewRaf) cancelAnimationFrame(previewRaf);
+  previewRaf = requestAnimationFrame(() => {
+    previewRaf = 0;
+    const gen = ++previewGen;
     const item = state.items[state.currentFrame];
     if (!item) return;
-    await processItem(item);
+
+    processItem(item);
+    renderFrame();
+    renderTimeline();
+    updateButtons();
+    const p = params();
+    setStatus(`实时预览 · TOL=${p.tol} INSET=${p.inset} FRINGE=${p.fringe} SOFT=${p.soft}`);
+
+    clearTimeout(othersTimer);
+    othersTimer = setTimeout(() => {
+      if (gen !== previewGen) return;
+      void reprocessOtherFrames(gen);
+    }, 160);
+  });
+}
+
+async function reprocessOtherFrames(gen) {
+  const cur = state.currentFrame;
+  let touched = 0;
+  for (let i = 0; i < state.items.length; i++) {
+    if (gen !== previewGen) return;
+    if (i === cur) continue;
+    const item = state.items[i];
+    if (!item.processed) continue;
+    processItem(item);
+    touched++;
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  if (gen !== previewGen) return;
+  if (touched > 0) {
     renderTimeline();
     renderFrame();
-  }, 180);
+    updateButtons();
+  }
+  const p = params();
+  setStatus(`参数已同步 · TOL=${p.tol} INSET=${p.inset}`);
 }
 
 export function sheetFrameSources(onlyProcessed) {
