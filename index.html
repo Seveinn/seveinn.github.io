@@ -1,31 +1,29 @@
----
-layout: page
-title: 首页
----
-<div class="page page-index">
-  {% for post in site.posts  -%}
-    {%- capture post_year %}{{ post.date | date: "%Y" }}{% endcapture -%}
-    {%- capture post_previous_year %}{{ post.previous.date | date: "%Y" }}{% endcapture -%}
-    {%- capture post_next_year %}{{ post.next.date | date: "%Y" }}{% endcapture -%}
-    {%- if forloop.first or post_next_year != post_year -%}
-    <div class="list-post">
-      <h2 id="{{post_year}}">{{post_year}}</h2>
-      <ul>
-    {%- endif %}
-        <li>
-          <span class="date">{{ post.date | date: "%Y/%m/%d" }}</span>
-          <div class="title">
-            <a href="{{ site.baseurl | append: post.url }}" class="hover-underline">{{ post.title }}</a>
-          </div>
-          <div class="categories">
-            {% for categorie in post.categories -%}
-            <a href="{{site.baseurl}}/pages/categories.html#{{ categorie }}" class="hover-underline">{{ categorie }}</a>
-            {%- endfor %}
-          </div>
-        </li>
-    {%- if forloop.last or post_previous_year != post_year %}
-      </ul>
-    </div>
-    {%- endif %}
-  {%- endfor %}
-</div>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="author" content="Seveinn" />
+    <meta name="robots" content="index, follow" />
+    <title>我的代码游乐场 | Cozy Tech Portfolio</title>
+    <meta name="description" content="Seveinn个人作品展示网站，包含游戏开发、翻译作品、创意实验等多种项目。" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-S9C5YJTYYJ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-S9C5YJTYYJ');
+    </script>
+    <!-- 引入可爱的字体 (Google Fonts) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

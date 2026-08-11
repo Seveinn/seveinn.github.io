@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>六边形田园 - 完美寻路修复版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap');
+
+        :root {
+            --bg-color: #f4f8eb;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --accent-color: #2ecc71;
+            --text-color: #2c3e50;
+        }
+
+        body {
+            margin: 0; overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Nunito', sans-serif;
+            color: var(--text-color);
+            user-select: none;
+        }
+
+        /* UI 通用样式 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .header {
+            padding: 15px 30px; display: flex; gap: 40px;
+            background: var(--panel-bg); backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0,0,0,0.05); pointer-events: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border-radius: 0 0 25px 25px;
+            align-self: center; align-items: center;
+        }
+
+        .stat-box { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+        .stat-label { font-size: 10px; color: #95a5a6; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 18px; font-weight: 800; color: var(--text-color); margin-top: 2px; }
+
+        .btn-recruit {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white; border: none; padding: 8px 16px; border-radius: 20px;
+            font-weight: bold; font-size: 12px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+            transition: transform 0.1s; display: flex; align-items: center; gap: 5px;
+        }
+        .btn-recruit:hover { transform: translateY(-2px); }
+        .btn-recruit:active { transform: scale(0.95); }
+        .btn-recruit:disabled { background: #bdc3c7; cursor: not-allowed; box-shadow: none; transform: none;}
+
+        .inventory-panel {
+            position: absolute; left: 20px; top: 110px; width: 240px;
+            background: var(--panel-bg); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 15px; pointer-events: auto;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+            max-height: 65vh; overflow-y: auto;
+        }
+
+        .control-panel {
+            position: absolute; right: 20px; top: 110px; width: 280px;
+            background: var(--panel-bg); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 15px; pointer-events: auto;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+            max-height: 65vh; overflow-y: auto;
+        }
+
+        .control-item {
+            background: #fff; border-radius: 10px; margin-bottom: 10px;
+            border: 1px solid #eee; overflow: hidden;
+        }
+
+        .control-header {
+            display: flex; align-items: center; padding: 12px;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.05), rgba(52, 152, 219, 0.05));
+        }
+
+        .control-icon {
+            width: 32px; height: 32px; border-radius: 8px; margin-right: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: bold; color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .control-info { flex: 1; }
+        .control-name { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
+        .control-desc { font-size: 11px; color: #aaa; }
+
+        .control-fields {
+            padding: 12px; background: #fafafa; border-top: 1px dashed #eee;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .control-field {
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        .control-label {
+            font-size: 11px; font-weight: 700; color: #95a5a6;
+            text-transform: uppercase; letter-spacing: 0.5px; min-width: 60px;
+        }
+
+        .control-input {
+            flex: 1; padding: 6px 10px; border: 1px solid #ddd;
+            border-radius: 6px; font-size: 13px; font-weight: 700;
+            color: var(--text-color); background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .control-input:focus {
+            outline: none; border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.1);
+        }
+
+        .control-value {
+            font-size: 13px; font-weight: 800; color: var(--accent-color);
+            min-width: 50px; text-align: right;
+        }
+
+        .tile-info-panel {
+            position: absolute;
+            background: var(--panel-bg); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 15px; pointer-events: none;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            min-width: 300px; max-width: 400px;
+            display: none; z-index: 50;
+            border: 2px solid rgba(46, 204, 113, 0.3);
+            transform: translate(-50%, -100%);
+            margin-bottom: 10px;
+        }
+
+        .tile-info-panel.active { display: block; }
+
+        .tile-info-header {
+            display: flex; align-items: center; margin-bottom: 12px;
+            padding-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .tile-info-icon {
+            width: 40px; height: 40px; border-radius: 10px; margin-right: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: bold; color: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .tile-info-title { flex: 1; }
+        .tile-info-name { font-size: 16px; font-weight: 800; color: #333; margin-bottom: 2px; }
+        .tile-info-coord { font-size: 11px; color: #95a5a6; font-weight: 700; }
+
+        .tile-info-content {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .tile-info-row {
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .tile-info-label {
+            font-size: 11px; font-weight: 700; color: #95a5a6;
+            text-transform: uppercase; letter-spacing: 0.5px; min-width: 70px;
+        }
+
+        .tile-info-drops {
+            display: flex; gap: 5px; flex-wrap: wrap; flex: 1;
+        }
+
+        .tile-info-drop-item {
+            font-size: 18px; line-height: 1;
+        }
+
+        .tile-info-progress {
+            flex: 1; height: 8px; background: #e8e8e8;
+            border-radius: 4px; overflow: hidden; position: relative;
+        }
+
+        .tile-info-progress-bar {
+            height: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60);
+            border-radius: 4px; transition: width 0.3s ease;
+            box-shadow: 0 1px 3px rgba(46, 204, 113, 0.3);
+        }
+
+        .tile-info-progress-text {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 10px; font-weight: 800; color: #2c3e50;
+            text-shadow: 0 0 2px white;
+        }
+
+        .inv-item { background: #fff; border-radius: 10px; margin-bottom: 8px; border: 1px solid #eee; overflow: hidden; }
+        .inv-header { display: flex; align-items: center; padding: 10px; cursor: pointer; }
+        .inv-header:hover { background-color: #f9f9f9; }
+        .inv-icon { margin-right: 12px; font-size: 20px; }
+        .inv-info { flex: 1; }
+        .inv-name { font-size: 14px; font-weight: 700; color: #333; }
+        .inv-price { font-size: 11px; color: #aaa; }
+        .inv-count { font-size: 15px; font-weight: 800; color: #2ecc71; }
+        
+        .sell-controls { padding: 15px; background: #fafafa; border-top: 1px dashed #eee; display: none; }
+        .sell-controls.active { display: block; }
+        .range-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        input[type=range] { flex: 1; accent-color: #e67e22; cursor: pointer; }
+        .sell-actions { display: flex; justify-content: space-between; align-items: center; }
+        .btn-sell { background: #e67e22; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
+        .shop-bar {
+            padding: 20px; display: flex; justify-content: center; gap: 15px;
+            pointer-events: auto; background: linear-gradient(to top, rgba(255,255,255,0.95), transparent); padding-bottom: 40px;
+        }
+        .card {
+            width: 80px; height: 110px; background: #fff; border-radius: 12px; border: 2px solid #fff;
+            cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); border-color: #88d8b0; }
+        .card.active { border-color: #2ecc71; box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.3); transform: translateY(-8px); }
+        .card-icon { width: 30px; height: 30px; border-radius: 50%; margin-bottom: 8px; }
+        .card-cost { font-size: 11px; font-weight: bold; background: #eee; padding: 2px 6px; border-radius: 4px; color: #555;}
+
+        /* Tooltips & Float Text */
+        #tooltip {
+            position: absolute; background: rgba(255,255,255,0.98); padding: 12px; border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15); pointer-events: none; display: none; z-index: 100; width: 180px; border: 1px solid #ddd;
+        }
+        .tt-title { font-weight: 800; font-size: 14px; margin-bottom: 5px; }
+        .tt-desc { font-size: 12px; color: #666; margin-bottom: 8px; line-height: 1.4; }
+        .tt-stat { font-size: 11px; color: #888; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 5px;}
+
+        .pop-text { position: absolute; font-weight: 800; font-size: 14px; text-shadow: 0 0 3px white; animation: floatUp 1.2s cubic-bezier(0.19, 1, 0.22, 1) forwards; pointer-events: none; white-space: nowrap; }
+        @keyframes floatUp { 0% { opacity: 0; transform: translateY(10px) scale(0.5); } 20% { opacity: 1; transform: translateY(0) scale(1.2); } 100% { opacity: 0; transform: translateY(-40px) scale(1); } }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #dcdcdc; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="header">
+            <div class="stat-box">
+                <span class="stat-label">金币</span>
+                <span class="stat-value" style="color:#e67e22">💰 <span id="gold-display">0</span></span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">人口</span>
+                <span class="stat-value" style="color:#3498db">👥 <span id="pop-current">0</span></span>
+            </div>
+            <button class="btn-recruit" id="btn-recruit" onclick="recruitUnit()">
+                <span>+ 招募</span>
+                <span style="font-size:10px; opacity:0.8" id="recruit-cost">50 G</span>
+            </button>
+            <div class="stat-box">
+                <span class="stat-label">等级</span>
+                <span class="stat-value" style="color:#9b59b6">⭐ <span id="level-display">1</span></span>
+            </div>
+        </div>
+        <div class="inventory-panel">
+            <div style="font-size:12px; font-weight:bold; color:#aaa; margin-bottom:10px; text-transform:uppercase;">📦 物资仓库</div>
+            <div id="inventory-list"></div>
+        </div>
+        <div class="control-panel">
+            <div style="font-size:12px; font-weight:bold; color:#aaa; margin-bottom:10px; text-transform:uppercase;">⚙️ 地块配置</div>
+            <div id="control-list"></div>
+        </div>
+        <div class="shop-bar" id="shop-container"></div>
+    </div>
+
+    <div id="tooltip"></div>
+    <div id="notifications"></div>
+    <div class="tile-info-panel" id="tile-info-panel">
+        <div class="tile-info-header">
+            <div class="tile-info-icon" id="tile-info-icon"></div>
+            <div class="tile-info-title">
+                <div class="tile-info-name" id="tile-info-name">-</div>
+                <div class="tile-info-coord" id="tile-info-coord">坐标: (0, 0)</div>
+            </div>
+        </div>
+        <div class="tile-info-content">
+            <div class="tile-info-row">
+                <span class="tile-info-label">产出类型</span>
+                <div class="tile-info-drops" id="tile-info-drops"></div>
+            </div>
+            <div class="tile-info-row">
+                <span class="tile-info-label">资源储量</span>
+                <div class="tile-info-progress">
+                    <div class="tile-info-progress-bar" id="tile-info-progress-bar"></div>
+                    <div class="tile-info-progress-text" id="tile-info-progress-text">0 / 0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/** 
+ * 配置与常量 
+ */
+const CONFIG = {
+    hexSize: 38,
+    colors: {
+        grass: '#A0D6B4', grassDark: '#8FC2A3', grassDepleted: '#d4dcb6',
+        forest: '#5D9B7B', forestDepleted: '#8c9c8e',
+        water: '#87CEEB',
+        rock: '#B0B0B0',
+        unit: '#fffaf0'
+    },
+    tiles: {
+        grass: { name: '丰饶草地', color: '#A0D6B4', cost: 20, type: 'grass', cap: 5, regen: 0.02, desc: '基础种植地块，产出野花与小麦。', drops: ['wildflower', 'wheat', 'berry'], dropRates: [0.6, 0.3, 0.1] },
+        forest: { name: '古老森林', color: '#5D9B7B', cost: 50, type: 'forest', cap: 8, regen: 0.015, desc: '林木资源丰富，偶尔有蘑菇。', drops: ['wood', 'mushroom', 'resin'], dropRates: [0.6, 0.3, 0.1] },
+        river: { name: '清澈溪流', color: '#87CEEB', cost: 80, type: 'river', cap: 100, regen: 99, desc: '永不枯竭的水源地。', drops: ['water', 'fish'], dropRates: [0.7, 0.3] },
+        rock: { name: '岩石荒地', color: '#B0B0B0', cost: 30, type: 'rock', cap: 20, regen: 0.01, desc: '坚硬的岩石，含有矿产。', drops: ['stone', 'crystal'], dropRates: [0.9, 0.1] }
+    },
+    resources: {
+        wildflower: { name: '野花', icon: '🌸', price: 2 },
+        wheat:      { name: '小麦', icon: '🌾', price: 4 },
+        berry:      { name: '浆果', icon: '🍒', price: 6 },
+        wood:       { name: '木材', icon: '🪵', price: 5 },
+        mushroom:   { name: '蘑菇', icon: '🍄', price: 8 },
+        resin:      { name: '树脂', icon: '🍯', price: 12 },
+        water:      { name: '清水', icon: '💧', price: 3 },
+        fish:       { name: '鲜鱼', icon: '🐟', price: 10 },
+        stone:      { name: '石料', icon: '🪨', price: 4 },
+        crystal:    { name: '水晶', icon: '💎', price: 30 }
+    }
+};
+
+const STATE = {
+    gold: 150,
+    level: 1,
+    xp: 0,
+    xpToNext: 100,
+    inventory: {}, 
+    units: [],
+    tiles: new Map(), 
+    selectedCard: null,
+    // 摄像机初始位置：屏幕中心
+    camera: { x: window.innerWidth/2, y: window.innerHeight/2 },
+    isDragging: false,
+    lastMouse: { x:0, y:0 },
+    mouse: { x:0, y:0 },
+    expandedResource: null,
+    recruitBaseCost: 50,
+    hoveredTile: null
+};
+
+for(let k in CONFIG.resources) STATE.inventory[k] = 0;
+
+/**
+ * 核心坐标系统 (修复重点)
+ * hexToPixel: 返回【世界坐标】，不包含摄像机偏移
+ */
+function hexToPixel(q, r) {
+    const x = CONFIG.hexSize * (3/2 * q);
+    const y = CONFIG.hexSize * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
+    return { x, y };
+}
+
+/**
+ * pixelToHex: 输入【屏幕坐标】，减去摄像机偏移后转为六边形坐标
+ */
+function pixelToHex(screenX, screenY) {
+    const worldX = screenX - STATE.camera.x;
+    const worldY = screenY - STATE.camera.y;
+    
+    const q = (2/3 * worldX) / CONFIG.hexSize;
+    const r = (-1/3 * worldX + Math.sqrt(3)/3 * worldY) / CONFIG.hexSize;
+    return hexRound(q, r);
+}
+
+function hexRound(q, r) {
+    let s = -q -r;
+    let rq=Math.round(q), rr=Math.round(r), rs=Math.round(s);
+    if(Math.abs(rq-q)>Math.abs(rr-r) && Math.abs(rq-q)>Math.abs(rs-s)) rq=-rr-rs;
+    else if(Math.abs(rr-r)>Math.abs(rs-s)) rr=-rq-rs;
+    return {q:rq, r:rr};
+}
+
+function getHexDist(q1, r1, q2, r2) {
+    return (Math.abs(q1-q2) + Math.abs(q1+r1-q2-r2) + Math.abs(r1-r2)) / 2;
+}
+
+/**
+ * 游戏类
+ */
+class Hex {
+    constructor(q, r, type) {
+        this.q = q; this.r = r; this.type = type;
+        const conf = CONFIG.tiles[type];
+        this.maxRes = conf.cap; this.curRes = conf.cap; this.regenRate = conf.regen;
+        this.occupiedBy = null;
+        this.depletedTime = null; // 记录枯竭的时间
+        this.regenDelay = 600; // 10秒 = 600帧（假设60fps，每帧1单位时间）
+    }
+    isDepleted() { return this.curRes <= 0; }
+    update() {
+        // 只有当剩余产出为0时，才开始计时
+        if (this.curRes <= 0) {
+            // 记录枯竭时间
+            if (this.depletedTime === null) {
+                this.depletedTime = 0;
+            } else {
+                this.depletedTime += 1;
+            }
+            
+            // 至少10秒后才开始恢复
+            if (this.depletedTime >= this.regenDelay) {
+                this.curRes += this.regenRate;
+                if (this.curRes > this.maxRes) this.curRes = this.maxRes;
+                // 如果恢复到上限，重置计时器
+                if (this.curRes >= this.maxRes) {
+                    this.depletedTime = null;
+                }
+            }
+        } else {
+            // 如果还有资源，重置计时器
+            this.depletedTime = null;
+        }
+    }
+    // 返回世界坐标
+    getWorldPos() { return hexToPixel(this.q, this.r); }
+}
+
+class Unit {
+    constructor(q, r, startTile = null) {
+        this.id = Math.random().toString(36).substr(2,9);
+        this.q = q;
+        this.r = r;
+        
+        // 关键修复：初始化时使用【世界坐标】
+        const worldPos = hexToPixel(q, r);
+        this.worldX = worldPos.x;
+        this.worldY = worldPos.y;
+        
+        this.targetHex = startTile;
+        
+        if (startTile) {
+            this.state = 'working';
+            startTile.occupiedBy = this.id;
+        } else {
+            this.state = 'idle';
+        }
+        this.workTimer = 0;
+        this.restTimer = 0; // 休息状态计时器
+    }
+
+    update(dt) {
+        switch (this.state) {
+            case 'idle': this.findNewJob(); break;
+            case 'moving': this.move(); break;
+            case 'working': this.work(dt); break;
+            case 'returning': this.move(); break;
+            case 'resting': 
+                // 休息状态：定期检查是否有新地块可以采集
+                this.restTimer += dt;
+                if (this.restTimer >= 60) { // 每60帧（约1秒）检查一次
+                    this.restTimer = 0;
+                    this.findNewJob(); // 尝试寻找新工作
+                }
+                break;
+        }
+    }
+
+    findNewJob() {
+        let bestDist = Infinity;
+        let bestTile = null;
+
+        for (let tile of STATE.tiles.values()) {
+            if (tile.type === 'rock' && Math.random() > 0.3) continue; 
+            if (tile.isDepleted()) continue;
+            if (tile.occupiedBy && tile.occupiedBy !== this.id) continue;
+
+            const dist = getHexDist(this.q, this.r, tile.q, tile.r);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestTile = tile;
+            }
+        }
+
+        if (bestTile) {
+            if (this.targetHex && this.targetHex.occupiedBy === this.id) {
+                this.targetHex.occupiedBy = null;
+            }
+            this.targetHex = bestTile;
+            this.targetHex.occupiedBy = this.id;
+            this.state = 'moving';
+        } else {
+            if (this.q !== 0 || this.r !== 0) {
+                this.targetHex = STATE.tiles.get("0,0");
+                this.state = 'returning';
+            }
+        }
+    }
+
+    move() {
+        if (!this.targetHex) { this.state = 'idle'; return; }
+
+        // 获取目标的世界坐标
+        const targetPos = this.targetHex.getWorldPos();
+        const dx = targetPos.x - this.worldX;
+        const dy = targetPos.y - this.worldY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const speed = 2.5;
+
+        if (dist > speed) {
+            this.worldX += (dx / dist) * speed;
+            this.worldY += (dy / dist) * speed;
+        } else {
+            this.worldX = targetPos.x;
+            this.worldY = targetPos.y;
+            this.q = this.targetHex.q;
+            this.r = this.targetHex.r;
+            
+            if (this.state === 'returning') this.state = 'idle';
+            else {
+                this.state = 'working';
+                this.workTimer = 0;
+            }
+        }
+    }
+
+    work(dt) {
+        if (!this.targetHex) {
+            this.state = 'idle';
+            return;
+        }
+        
+        // 检查地块是否进入枯竭恢复期（curRes <= 0 且 depletedTime !== null）
+        if (this.targetHex.isDepleted() && this.targetHex.depletedTime !== null) {
+            // 地块正在恢复中，寻找附近尚未枯竭的地块
+            this.findNearbyJob();
+            return;
+        }
+        
+        // 如果地块完全枯竭且不在恢复期，或者地块被其他人占用
+        if (this.targetHex.isDepleted() || (this.targetHex.occupiedBy && this.targetHex.occupiedBy !== this.id)) {
+            if(this.targetHex.occupiedBy === this.id) this.targetHex.occupiedBy = null;
+            this.targetHex = null;
+            this.state = 'idle';
+            return;
+        }
+
+        this.workTimer += dt;
+        if (this.workTimer > 180) { 
+            this.gather();
+            this.workTimer = 0;
+        }
+    }
+    
+    findNearbyJob() {
+        // 寻找附近（距离<=3）尚未枯竭的地块
+        let bestDist = Infinity;
+        let bestTile = null;
+        const maxSearchDist = 3;
+
+        for (let tile of STATE.tiles.values()) {
+            if (tile.type === 'rock' && Math.random() > 0.3) continue; 
+            if (tile.isDepleted()) continue;
+            if (tile.occupiedBy && tile.occupiedBy !== this.id) continue;
+
+            const dist = getHexDist(this.q, this.r, tile.q, tile.r);
+            if (dist <= maxSearchDist && dist < bestDist) {
+                bestDist = dist;
+                bestTile = tile;
+            }
+        }
+
+        if (bestTile) {
+            // 找到附近的地块，前往
+            if (this.targetHex && this.targetHex.occupiedBy === this.id) {
+                this.targetHex.occupiedBy = null;
+            }
+            this.targetHex = bestTile;
+            this.targetHex.occupiedBy = this.id;
+            this.state = 'moving';
+        } else {
+            // 找不到附近的地块，停留在原地休息
+            if (this.targetHex && this.targetHex.occupiedBy === this.id) {
+                this.targetHex.occupiedBy = null;
+            }
+            this.targetHex = null;
+            this.state = 'resting';
+        }
+    }
+
+    gather() {
+        const tile = this.targetHex;
+        if (!tile || tile.curRes <= 0) return;
+        tile.curRes = Math.max(0, tile.curRes - 1);
+        const conf = CONFIG.tiles[tile.type];
+        const rand = Math.random();
+        let cumulative = 0;
+        let loot = conf.drops[0];
+        
+        for (let i = 0; i < conf.drops.length; i++) {
+            cumulative += conf.dropRates[i];
+            if (rand < cumulative) { loot = conf.drops[i]; break; }
+        }
+
+        addResource(loot, 1);
+        addXP(2);
+        const resConf = CONFIG.resources[loot];
+        // 浮动文字位置 = 世界坐标 + 摄像机坐标
+        showFloatText(`+${resConf.icon}`, this.worldX + STATE.camera.x, this.worldY + STATE.camera.y - 25, '#333');
+    }
+
+    draw(ctx) {
+        // 关键修复：渲染时才计算屏幕坐标
+        const screenX = this.worldX + STATE.camera.x;
+        const screenY = this.worldY + STATE.camera.y;
+        
+        const breath = Math.sin(Date.now() / 200) * 1.5;
+        
+        // 阴影
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.beginPath(); ellipse(ctx, screenX, screenY + 6, 8, 3); ctx.fill();
+        
+        // 身体 (居中绘制)
+        ctx.fillStyle = CONFIG.colors.unit;
+        ctx.beginPath();
+        roundRect(ctx, screenX - 7 - breath/2, screenY - 10 - breath, 14 + breath, 16 + breath, 5);
+        ctx.fill();
+
+        // 眼睛
+        ctx.fillStyle = '#333';
+        const blink = Math.sin(Date.now() / 1500) > 0.95;
+        if (!blink) {
+            ctx.beginPath();
+            ctx.arc(screenX - 3, screenY - 5 - breath, 1.5, 0, Math.PI*2);
+            ctx.arc(screenX + 3, screenY - 5 - breath, 1.5, 0, Math.PI*2);
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(screenX - 4, screenY - 5); ctx.lineTo(screenX - 2, screenY - 5);
+            ctx.moveTo(screenX + 2, screenY - 5); ctx.lineTo(screenX + 4, screenY - 5);
+            ctx.stroke();
+        }
+
+        if (this.state === 'idle' || this.state === 'returning') {
+            ctx.fillStyle = '#bbb';
+            ctx.font = '10px Arial';
+            ctx.fillText('zZ', screenX + 8, screenY - 8);
+        }
+        
+        // 休息状态：显示泡泡
+        if (this.state === 'resting') {
+            const bubbleY = screenY - 20 - Math.sin(Date.now() / 300) * 2;
+            const bubbleSize = 4 + Math.sin(Date.now() / 400) * 1;
+            
+            // 绘制泡泡
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.6)';
+            ctx.beginPath();
+            ctx.arc(screenX, bubbleY, bubbleSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(screenX, bubbleY, bubbleSize, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 第二个小泡泡
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.4)';
+            ctx.beginPath();
+            ctx.arc(screenX - 3, bubbleY - 3, bubbleSize * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
+/**
+ * 游戏逻辑
+ */
+function initGame() {
+    placeTile(0, 0, 'grass');
+    placeTile(1, -1, 'grass');
+    placeTile(0, -1, 'grass');
+    placeTile(-1, 0, 'forest');
+
+    spawnUnit(); 
+    spawnUnit();
+
+    renderShop();
+    renderInventory();
+    renderControlPanel();
+    updateUI();
+}
+
+function placeTile(q, r, type) {
+    const key = `${q},${r}`;
+    if (STATE.tiles.has(key)) return false;
+    STATE.tiles.set(key, new Hex(q, r, type));
+    return true;
+}
+
+function spawnUnit() {
+    let startTile = null;
+    
+    // 策略：找一个没人的、没枯竭的、不是岩石的地块
+    for (let tile of STATE.tiles.values()) {
+        if (!tile.occupiedBy && !tile.isDepleted() && tile.type !== 'rock') {
+            startTile = tile;
+            break;
+        }
+    }
+    // 降级策略
+    if (!startTile) {
+        for (let tile of STATE.tiles.values()) {
+            if (!tile.occupiedBy && !tile.isDepleted()) {
+                startTile = tile;
+                break;
+            }
+        }
+    }
+
+    let q = 0, r = 0;
+    if (startTile) {
+        q = startTile.q;
+        r = startTile.r;
+    }
+    
+    // 传入目标地块，Unit构造函数会自动计算中心坐标
+    const unit = new Unit(q, r, startTile);
+    STATE.units.push(unit);
+}
+
+function recruitUnit() {
+    const cost = getRecruitCost();
+    if (STATE.gold >= cost) {
+        STATE.gold -= cost;
+        spawnUnit();
+        showFloatText("招募成功!", window.innerWidth/2, window.innerHeight/2, '#2980b9');
+        updateUI();
+    }
+}
+
+function getRecruitCost() {
+    const base = STATE.recruitBaseCost;
+    const extra = Math.max(0, (STATE.units.length - 2) * 25);
+    return base + extra;
+}
+
+function addResource(id, count) { STATE.inventory[id] += count; renderInventoryRow(id); }
+function addXP(amount) {
+    STATE.xp += amount;
+    if (STATE.xp >= STATE.xpToNext) {
+        STATE.level++; STATE.xp -= STATE.xpToNext; STATE.xpToNext = Math.floor(STATE.xpToNext * 1.3);
+        showFloatText("LEVEL UP!", window.innerWidth/2, window.innerHeight/2, '#9b59b6');
+    }
+    updateUI();
+}
+
+/* UI Functions */
+function updateUI() {
+    document.getElementById('gold-display').innerText = Math.floor(STATE.gold);
+    document.getElementById('pop-current').innerText = STATE.units.length;
+    document.getElementById('level-display').innerText = STATE.level;
+    const cost = getRecruitCost();
+    const btn = document.getElementById('btn-recruit');
+    document.getElementById('recruit-cost').innerText = cost + " G";
+    btn.disabled = STATE.gold < cost;
+    document.querySelectorAll('.card').forEach(c => {
+        const type = c.dataset.type;
+        c.style.opacity = STATE.gold < CONFIG.tiles[type].cost ? 0.5 : 1;
+    });
+}
+function renderInventory() {
+    const list = document.getElementById('inventory-list'); list.innerHTML = '';
+    Object.keys(CONFIG.resources).forEach(key => {
+        const div = document.createElement('div'); div.className = 'inv-item'; div.id = `inv-row-${key}`;
+        list.appendChild(div); renderInventoryRow(key);
+    });
+}
+function renderInventoryRow(key) {
+    const count = STATE.inventory[key]; const conf = CONFIG.resources[key];
+    const container = document.getElementById(`inv-row-${key}`);
+    if(!container) return;
+    if (count === 0 && STATE.expandedResource !== key) { container.style.display = 'none'; return; } 
+    else container.style.display = 'block';
+    
+    const isExpanded = (STATE.expandedResource === key);
+    let html = `<div class="inv-header" onclick="toggleResource('${key}')"><div class="inv-icon">${conf.icon}</div><div class="inv-info"><div class="inv-name">${conf.name}</div><div class="inv-price">${conf.price} G</div></div><div class="inv-count">x${count}</div></div>`;
+    if (isExpanded) {
+        html += `<div class="sell-controls active"><div class="range-wrapper"><span style="font-size:12px;color:#aaa">0</span><input type="range" min="1" max="${count}" value="${Math.ceil(count/2)}" id="range-${key}" oninput="updateSellPreview('${key}')"><span style="font-size:12px;color:#aaa">${count}</span></div><div class="sell-actions"><span class="sell-preview" id="preview-${key}">预计: ${Math.ceil(count/2) * conf.price} G</span><button class="btn-sell" onclick="sellItem('${key}')">确认出售</button></div></div>`;
+    }
+    container.innerHTML = html;
+}
+function toggleResource(key) {
+    if (STATE.inventory[key] <= 0) return;
+    STATE.expandedResource = STATE.expandedResource === key ? null : key;
+    Object.keys(CONFIG.resources).forEach(k => renderInventoryRow(k));
+}
+function updateSellPreview(key) {
+    const val = document.getElementById(`range-${key}`).value;
+    document.getElementById(`preview-${key}`).innerText = `预计: ${val * CONFIG.resources[key].price} G`;
+}
+function sellItem(key) {
+    const val = parseInt(document.getElementById(`range-${key}`).value);
+    if (val > 0 && STATE.inventory[key] >= val) {
+        STATE.inventory[key] -= val; STATE.gold += val * CONFIG.resources[key].price;
+        const row = document.getElementById(`inv-row-${key}`);
+        const rect = row.getBoundingClientRect();
+        showFloatText(`+${val * CONFIG.resources[key].price} G`, rect.right + 10, rect.top + 20, '#f1c40f');
+        if (STATE.inventory[key] === 0) STATE.expandedResource = null;
+        renderInventoryRow(key); updateUI();
+    }
+}
+function renderShop() {
+    const box = document.getElementById('shop-container'); const tooltip = document.getElementById('tooltip'); box.innerHTML = '';
+    for (let t in CONFIG.tiles) {
+        const d = CONFIG.tiles[t];
+        const el = document.createElement('div'); el.className = 'card'; el.dataset.type = t;
+        el.innerHTML = `<div class="card-icon" style="background:${d.color}"></div><div class="card-cost">${d.cost}</div>`;
+        el.onmouseenter = () => { tooltip.style.display = 'block'; tooltip.innerHTML = `<div class="tt-title">${d.name}</div><div class="tt-desc">${d.desc}</div><div class="tt-stat"><span>储量: ${d.cap}</span><span>掉落: ${d.drops.map(x=>CONFIG.resources[x].icon).join('')}</span></div>`; };
+        el.onmousemove = (e) => { tooltip.style.left = (e.clientX - 90) + 'px'; tooltip.style.top = (e.clientY - 120) + 'px'; };
+        el.onmouseleave = () => tooltip.style.display = 'none';
+        el.onclick = () => { if (STATE.gold >= d.cost) { if(STATE.selectedCard === t) { STATE.selectedCard = null; el.classList.remove('active'); } else { document.querySelectorAll('.card').forEach(c=>c.classList.remove('active')); STATE.selectedCard = t; el.classList.add('active'); } } else { showFloatText("金币不足", window.innerWidth/2, window.innerHeight - 100, '#e74c3c'); } };
+        box.appendChild(el);
+    }
+}
+function showFloatText(text, x, y, color) {
+    const el = document.createElement('div'); el.className = 'pop-text'; el.innerText = text; el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.color = color;
+    document.getElementById('notifications').appendChild(el); setTimeout(() => el.remove(), 1200);
+}
+
+function renderControlPanel() {
+    const list = document.getElementById('control-list');
+    list.innerHTML = '';
+    
+    Object.keys(CONFIG.tiles).forEach(type => {
+        const tile = CONFIG.tiles[type];
+        const item = document.createElement('div');
+        item.className = 'control-item';
+        item.id = `control-${type}`;
+        
+        item.innerHTML = `
+            <div class="control-header">
+                <div class="control-icon" style="background: ${tile.color}">${tile.name.charAt(0)}</div>
+                <div class="control-info">
+                    <div class="control-name">${tile.name}</div>
+                    <div class="control-desc">${tile.desc}</div>
+                </div>
+            </div>
+            <div class="control-fields">
+                <div class="control-field">
+                    <span class="control-label">产出上限</span>
+                    <input type="number" class="control-input" id="cap-${type}" 
+                           value="${tile.cap}" min="1" max="9999" 
+                           onchange="updateTileConfig('${type}', 'cap', this.value)">
+                    <span class="control-value" id="cap-display-${type}">${tile.cap}</span>
+                </div>
+                <div class="control-field">
+                    <span class="control-label">购买金额</span>
+                    <input type="number" class="control-input" id="cost-${type}" 
+                           value="${tile.cost}" min="1" max="9999" 
+                           onchange="updateTileConfig('${type}', 'cost', this.value)">
+                    <span class="control-value" id="cost-display-${type}">${tile.cost} G</span>
+                </div>
+            </div>
+        `;
+        
+        list.appendChild(item);
+    });
+}
+
+function updateTileConfig(type, property, value) {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue < 1) {
+        showFloatText("数值无效", window.innerWidth/2, window.innerHeight/2, '#e74c3c');
+        renderControlPanel();
+        return;
+    }
+    
+    if (property === 'cap') {
+        CONFIG.tiles[type].cap = numValue;
+        // 更新已存在地块的最大资源量
+        STATE.tiles.forEach(tile => {
+            if (tile.type === type) {
+                const oldMax = tile.maxRes;
+                tile.maxRes = numValue;
+                // 如果当前资源超过新上限，调整到上限
+                if (tile.curRes > numValue) {
+                    tile.curRes = numValue;
+                }
+                // 如果地块已枯竭但新上限更高，恢复一些资源
+                if (tile.curRes <= 0 && numValue > oldMax) {
+                    tile.curRes = Math.min(numValue, oldMax);
+                }
+            }
+        });
+        document.getElementById(`cap-display-${type}`).innerText = numValue;
+        showFloatText(`${CONFIG.tiles[type].name} 上限已更新`, window.innerWidth/2, window.innerHeight/2, '#2ecc71');
+    } else if (property === 'cost') {
+        CONFIG.tiles[type].cost = numValue;
+        document.getElementById(`cost-display-${type}`).innerText = numValue + ' G';
+        // 更新商店显示
+        renderShop();
+        updateUI();
+        showFloatText(`${CONFIG.tiles[type].name} 价格已更新`, window.innerWidth/2, window.innerHeight/2, '#2ecc71');
+    }
+}
+
+function updateTileInfoPanel() {
+    const panel = document.getElementById('tile-info-panel');
+    if (!STATE.hoveredTile) {
+        panel.classList.remove('active');
+        return;
+    }
+    
+    panel.classList.add('active');
+    const tile = STATE.hoveredTile;
+    const tileConfig = CONFIG.tiles[tile.type];
+    
+    // 计算面板位置：显示在地块上方
+    const worldPos = tile.getWorldPos();
+    const screenX = worldPos.x + STATE.camera.x;
+    const screenY = worldPos.y + STATE.camera.y;
+    
+    panel.style.left = screenX + 'px';
+    panel.style.top = (screenY - 50) + 'px';
+    
+    // 更新图标和名称
+    const iconEl = document.getElementById('tile-info-icon');
+    iconEl.style.background = tileConfig.color;
+    iconEl.innerText = tileConfig.name.charAt(0);
+    
+    document.getElementById('tile-info-name').innerText = tileConfig.name;
+    document.getElementById('tile-info-coord').innerText = `坐标: (${tile.q}, ${tile.r})`;
+    
+    // 更新产出类型
+    const dropsEl = document.getElementById('tile-info-drops');
+    dropsEl.innerHTML = '';
+    tileConfig.drops.forEach(dropKey => {
+        const dropItem = document.createElement('span');
+        dropItem.className = 'tile-info-drop-item';
+        dropItem.innerText = CONFIG.resources[dropKey].icon;
+        dropItem.title = CONFIG.resources[dropKey].name;
+        dropsEl.appendChild(dropItem);
+    });
+    
+    // 更新进度条
+    const progress = Math.max(0, Math.min(1, tile.curRes / tile.maxRes));
+    const progressBar = document.getElementById('tile-info-progress-bar');
+    const progressText = document.getElementById('tile-info-progress-text');
+    
+    progressBar.style.width = (progress * 100) + '%';
+    progressText.innerText = `${Math.floor(tile.curRes)} / ${tile.maxRes}`;
+    
+    // 根据进度调整颜色
+    if (progress > 0.5) {
+        progressBar.style.background = 'linear-gradient(90deg, #2ecc71, #27ae60)';
+    } else if (progress > 0.2) {
+        progressBar.style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
+    } else {
+        progressBar.style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
+    }
+}
+
+// 辅助函数：将十六进制颜色转换为RGB
+function hexToRgb(hex) {
+    // 处理 #RRGGBB 格式
+    if (hex.startsWith('#')) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+    // 处理 rgb(r, g, b) 格式
+    const rgbMatch = hex.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (rgbMatch) {
+        return {
+            r: parseInt(rgbMatch[1]),
+            g: parseInt(rgbMatch[2]),
+            b: parseInt(rgbMatch[3])
+        };
+    }
+    return null;
+}
+
+/** 
+ * 主循环与绘制 
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; STATE.camera.x = canvas.width/2; STATE.camera.y = canvas.height/2; }
+window.addEventListener('resize', resize); resize();
+
+function gameLoop() {
+    ctx.clearRect(0,0, canvas.width, canvas.height);
+    STATE.tiles.forEach(t => t.update());
+    
+    // 渲染地块
+    STATE.tiles.forEach(t => {
+        const worldPos = t.getWorldPos();
+        // 关键：渲染坐标 = 世界坐标 + 摄像机坐标
+        const screenX = worldPos.x + STATE.camera.x;
+        const screenY = worldPos.y + STATE.camera.y;
+
+        let color = CONFIG.tiles[t.type].color;
+        if (t.isDepleted() && t.type !== 'river') {
+            color = (t.type === 'grass') ? CONFIG.colors.grassDepleted : CONFIG.colors.forestDepleted;
+        }
+        
+        // 高亮悬浮的地块：颜色变白
+        const isHovered = STATE.hoveredTile && STATE.hoveredTile.q === t.q && STATE.hoveredTile.r === t.r;
+        if (isHovered) {
+            // 将颜色混合白色，使其变亮
+            const rgb = hexToRgb(color);
+            if (rgb) {
+                const lightenAmount = 0.4;
+                color = `rgb(${Math.min(255, rgb.r + (255 - rgb.r) * lightenAmount)}, 
+                           ${Math.min(255, rgb.g + (255 - rgb.g) * lightenAmount)}, 
+                           ${Math.min(255, rgb.b + (255 - rgb.b) * lightenAmount)})`;
+            }
+        }
+        
+        drawHex(ctx, screenX, screenY, color, t.type);
+        
+        if (t.isDepleted()) {
+            const pct = t.curRes / t.maxRes;
+            ctx.beginPath(); ctx.strokeStyle = 'rgba(46, 204, 113, 0.8)'; ctx.lineWidth = 3;
+            ctx.arc(screenX, screenY, 10, -Math.PI/2, -Math.PI/2 + (Math.PI*2 * pct)); ctx.stroke();
+        }
+    });
+
+    // 渲染预览
+    if (STATE.selectedCard) {
+        const hex = pixelToHex(STATE.mouse.x, STATE.mouse.y);
+        const key = `${hex.q},${hex.r}`;
+        const worldPos = hexToPixel(hex.q, hex.r);
+        
+        if (!STATE.tiles.has(key)) {
+            let hasNeighbor = false;
+            const dirs = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+            for(let d of dirs) if(STATE.tiles.has(`${hex.q+d[0]},${hex.r+d[1]}`)) hasNeighbor = true;
+            if (hasNeighbor) { 
+                ctx.globalAlpha = 0.6; 
+                drawHex(ctx, worldPos.x + STATE.camera.x, worldPos.y + STATE.camera.y, CONFIG.tiles[STATE.selectedCard].color, STATE.selectedCard); 
+                ctx.globalAlpha = 1; 
+            }
+        }
+    }
+
+    // 渲染小人
+    STATE.units.forEach(u => { u.update(1); u.draw(ctx); });
+    
+    // 实时更新地块信息面板
+    if (STATE.hoveredTile) {
+        updateTileInfoPanel();
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// 绘图辅助
+function drawHex(ctx, x, y, color, type) {
+    const size = CONFIG.hexSize - 1;
+    ctx.beginPath(); for(let i=0; i<6; i++) { const ang = Math.PI/3 * i; ctx.lineTo(x + size*Math.cos(ang), y + size*Math.sin(ang)); }
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.05)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    if(type==='forest') { ctx.beginPath(); ctx.arc(x,y-5,6,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x-5,y+5,5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(x+5,y+5,5,0,Math.PI*2); ctx.fill(); }
+    if(type==='rock') ctx.fillRect(x-4,y-4,8,8);
+}
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r); ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h); ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath(); }
+function ellipse(ctx, cx, cy, rx, ry) { ctx.save(); ctx.beginPath(); ctx.translate(cx-rx, cy-ry); ctx.scale(rx, ry); ctx.arc(1, 1, 1, 0, 2 * Math.PI, false); ctx.restore(); }
+
+// 交互
+canvas.addEventListener('mousemove', e => { 
+    STATE.mouse.x = e.clientX; STATE.mouse.y = e.clientY; 
+    if(STATE.isDragging) { 
+        STATE.camera.x += e.clientX - STATE.lastMouse.x; 
+        STATE.camera.y += e.clientY - STATE.lastMouse.y; 
+        STATE.lastMouse.x = e.clientX; STATE.lastMouse.y = e.clientY; 
+    } else {
+        // 检测鼠标悬浮的地块
+        const hex = pixelToHex(e.clientX, e.clientY);
+        const key = `${hex.q},${hex.r}`;
+        const tile = STATE.tiles.get(key);
+        STATE.hoveredTile = tile || null;
+        updateTileInfoPanel();
+    }
+});
+canvas.addEventListener('mousedown', e => { if(e.button===2 || !STATE.selectedCard) { STATE.isDragging = true; STATE.lastMouse = {x:e.clientX, y:e.clientY}; } });
+canvas.addEventListener('mouseup', ()=> STATE.isDragging=false);
+canvas.addEventListener('mouseleave', () => {
+    STATE.hoveredTile = null;
+    updateTileInfoPanel();
+});
+canvas.addEventListener('click', e => { 
+    if(STATE.selectedCard && !STATE.isDragging) { 
+        const h = pixelToHex(e.clientX, e.clientY); 
+        const k = `${h.q},${h.r}`; 
+        if(STATE.tiles.has(k)) return; 
+        let valid = false; 
+        const dirs = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]]; 
+        for(let d of dirs) if(STATE.tiles.has(`${h.q+d[0]},${h.r+d[1]}`)) valid = true; 
+        if(valid) { 
+            const cost = CONFIG.tiles[STATE.selectedCard].cost; 
+            if(STATE.gold >= cost) { 
+                STATE.gold -= cost; placeTile(h.q, h.r, STATE.selectedCard); addXP(10); 
+                showFloatText("Build", e.clientX, e.clientY, '#2ecc71'); updateUI(); 
+            } 
+        } 
+    } 
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+initGame();
+gameLoop();
+</script>
+</body>
+</html>

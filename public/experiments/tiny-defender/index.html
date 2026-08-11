@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>符文防线：虚空协议</title>
+    <style>
+        :root {
+            --bg-color: #0b0c15;
+            --panel-bg: rgba(20, 22, 35, 0.85);
+            --accent-cyan: #4deeea;
+            --accent-gold: #f9ca24;
+            --accent-red: #ff4757;
+            --accent-green: #2ed573;
+            --text-main: #ffffff;
+            --text-dim: #8a8d9f;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+            --font-stack: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% 50%, #1a1d2e 0%, #000000 100%);
+            color: var(--text-main);
+            font-family: var(--font-stack);
+            overflow: hidden;
+            user-select: none;
+            cursor: default;
+        }
+
+        /* --- 游戏层 (Canvas) --- */
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+
+        /* --- 背景氛围粒子 --- */
+        .bg-particles {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 3px),
+                radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px);
+            background-size: 550px 550px, 350px 350px;
+            opacity: 0.3;
+            animation: bgMove 60s linear infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+        @keyframes bgMove { from { transform: translateY(0); } to { transform: translateY(-550px); } }
+
+        /* --- UI: 启动界面层 --- */
+        #start-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            display: flex; /* 默认显示 */
+            backdrop-filter: blur(10px);
+            background: rgba(11, 12, 21, 0.6);
+            transition: opacity 0.5s;
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        .start-screen {
+            text-align: center;
+            max-width: 600px;
+            padding: 60px;
+            margin: 0 auto;
+        }
+
+        .start-title {
+            font-size: 56px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+            color: var(--text-main);
+            text-shadow: 0 0 30px var(--accent-cyan);
+        }
+
+        .start-subtitle {
+            font-size: 18px;
+            color: var(--text-dim);
+            margin-bottom: 60px;
+            letter-spacing: 2px;
+        }
+
+        .start-currency {
+            font-size: 28px;
+            color: var(--accent-gold);
+            margin-bottom: 40px;
+            text-shadow: 0 0 15px rgba(249, 202, 36, 0.3);
+        }
+
+        /* --- UI: 符文模组库层 --- */
+        #rune-workshop-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            display: none; /* 默认隐藏 */
+            backdrop-filter: blur(10px);
+            background: rgba(11, 12, 21, 0.6);
+            transition: opacity 0.5s;
+        }
+
+        /* --- UI: 结果界面层 --- */
+        #result-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 15;
+            display: none; /* 默认隐藏 */
+            backdrop-filter: blur(10px);
+            background: rgba(11, 12, 21, 0.8);
+            transition: opacity 0.5s;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .result-screen {
+            text-align: center;
+            max-width: 600px;
+            padding: 60px;
+            background: var(--panel-bg);
+            border: var(--glass-border);
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .result-title {
+            font-size: 48px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        .result-title.win {
+            color: var(--accent-green);
+            text-shadow: 0 0 30px var(--accent-green);
+        }
+
+        .result-title.lose {
+            color: var(--accent-red);
+            text-shadow: 0 0 30px var(--accent-red);
+        }
+
+        .result-info {
+            font-size: 20px;
+            color: var(--text-dim);
+            margin-bottom: 40px;
+            letter-spacing: 1px;
+        }
+
+        .result-gold {
+            font-size: 32px;
+            color: var(--accent-gold);
+            margin-bottom: 50px;
+            text-shadow: 0 0 15px rgba(249, 202, 36, 0.3);
+        }
+
+        .result-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        #app-container {
+            display: flex;
+            width: 95%;
+            height: 85%;
+            margin: 4% auto;
+            gap: 20px;
+            position: relative;
+        }
+
+        /* 符文模组库的返回按钮 */
+        .workshop-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section-header {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            padding-bottom: 12px;
+        }
+
+        .rune-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            overflow-y: auto;
+            flex: 1;
+            padding: 20px;
+        }
+        .rune-list::-webkit-scrollbar { width: 0; }
+
+        .rune-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--panel-bg);
+            border: var(--glass-border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 1;
+            text-align: center;
+        }
+        .rune-item:hover {
+            background: rgba(77, 238, 234, 0.1);
+            border-color: var(--accent-cyan);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(77, 238, 234, 0.2);
+        }
+        .rune-item.active {
+            background: rgba(77, 238, 234, 0.15);
+            border-color: var(--accent-cyan);
+            border-width: 2px;
+            box-shadow: 0 0 20px rgba(77, 238, 234, 0.4);
+        }
+        .rune-item.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(0.8);
+        }
+        .rune-item.locked:hover {
+            transform: none;
+            background: var(--panel-bg);
+            border-color: var(--glass-border);
+        }
+        .rune-item-icon { 
+            width: 64px; 
+            height: 64px; 
+            margin-bottom: 15px; 
+            color: #666; 
+        }
+        .rune-item.active .rune-item-icon { 
+            color: var(--accent-cyan); 
+            filter: drop-shadow(0 0 10px var(--accent-cyan));
+        }
+        .rune-item.locked .rune-item-icon {
+            color: #444;
+        }
+        .rune-item-title { 
+            font-weight: bold; 
+            font-size: 16px; 
+            letter-spacing: 1px; 
+            margin-bottom: 5px;
+        }
+        .rune-item-level { 
+            font-size: 12px; 
+            color: var(--text-dim); 
+        }
+        .rune-item-locked-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: var(--text-dim);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+
+        /* 详情面板 */
+        .main-panel {
+            width: 0;
+            background: var(--panel-bg);
+            border: var(--glass-border);
+            border-radius: 12px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s;
+            overflow: hidden;
+            opacity: 0;
+            flex-shrink: 0;
+        }
+        .main-panel.expanded {
+            width: 600px;
+            padding: 40px 60px;
+            opacity: 1;
+            margin-left: 20px;
+        }
+        .detail-close-btn {
+            position: absolute;
+            left: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: var(--panel-bg);
+            border: var(--glass-border);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-main);
+            font-size: 20px;
+            transition: all 0.3s ease;
+            z-index: 1;
+        }
+        .detail-close-btn:hover {
+            background: rgba(77, 238, 234, 0.2);
+            border-color: var(--accent-cyan);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .top-currency {
+            position: absolute;
+            top: -40px; right: 0;
+            display: flex; gap: 10px; align-items: center;
+            font-size: 24px; color: var(--accent-gold);
+            text-shadow: 0 0 15px rgba(249, 202, 36, 0.3);
+        }
+
+        .detail-title { font-size: 42px; font-weight: bold; letter-spacing: 2px; margin: 0 0 5px 0; }
+        .detail-type { color: var(--accent-cyan); font-size: 14px; letter-spacing: 2px; font-weight: bold; text-transform: uppercase; }
+        
+        .gesture-preview {
+            flex: 1; margin: 20px 0;
+            background: radial-gradient(circle, rgba(77, 238, 234, 0.05) 0%, transparent 70%);
+            display: flex; justify-content: center; align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .preview-svg { width: 180px; height: 180px; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 10px currentColor); }
+        .preview-path { stroke-dasharray: 100; animation: drawPath 2s ease-in-out infinite; }
+        @keyframes drawPath { 0% { stroke-dashoffset: 100; opacity: 0;} 15% { opacity: 1; } 85% { stroke-dashoffset: 0; opacity: 1;} 100% { stroke-dashoffset: 0; opacity: 0;} }
+
+        .level-progress { display: flex; gap: 6px; margin-bottom: 20px; }
+        .pip { width: 30px; height: 6px; background: #333; border-radius: 2px; }
+        .pip.active { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+        .detail-desc { color: #ddd; font-size: 15px; line-height: 1.6; max-width: 500px; }
+
+        .action-area { margin-top: auto; display: flex; gap: 20px; }
+        
+        .btn-large {
+            padding: 15px 40px; font-size: 18px; font-weight: bold; letter-spacing: 1px;
+            border: none; background: white; color: black; cursor: pointer;
+            display: flex; align-items: center; gap: 10px;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: 0.2s;
+        }
+        .btn-large:hover { transform: scale(1.05); background: var(--accent-cyan); }
+        .btn-large:active { transform: scale(0.95); }
+        .btn-large.disabled { background: #333; color: #666; pointer-events: none; }
+        
+        .btn-start {
+            background: var(--accent-red); color: white; margin-top: 20px; width: 100%; justify-content: center;
+        }
+        .btn-start:hover { background: #ff6b81; }
+
+        /* --- UI: 战斗HUD层 --- */
+        #hud-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5;
+            pointer-events: none;
+            display: none; /* 默认隐藏 */
+        }
+
+        .hud-top {
+            position: absolute; top: 20px; left: 0; width: 100%;
+            display: flex; justify-content: center; gap: 40px;
+        }
+        .hud-item {
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            padding: 8px 20px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 16px; font-weight: bold;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .hud-hp-bar { width: 150px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+        .hud-hp-fill { height: 100%; background: var(--accent-green); width: 100%; transition: width 0.2s; box-shadow: 0 0 10px var(--accent-green); }
+        
+        .hud-bottom {
+            position: absolute; bottom: 20px; width: 100%;
+            text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; letter-spacing: 2px;
+        }
+        .key-hint { background: #eee; color: #000; padding: 0 4px; border-radius: 2px; font-weight: bold; font-size: 10px; margin-right: 5px; }
+
+        /* --- 特效层 --- */
+        #fx-flash {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: red; opacity: 0; pointer-events: none; z-index: 20; transition: opacity 0.1s;
+        }
+        #message-toast {
+            position: absolute; top: 30%; width: 100%; text-align: center;
+            font-size: 32px; font-weight: bold; color: white;
+            text-shadow: 0 0 20px var(--accent-cyan);
+            opacity: 0; transition: opacity 0.5s; z-index: 20; pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="bg-particles"></div>
+<div id="fx-flash"></div>
+<div id="message-toast"></div>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- 启动界面 -->
+<div id="start-layer">
+    <div class="start-screen">
+        <h1 class="start-title">符文防线：虚空协议</h1>
+        <p class="start-subtitle">绘制符文，抵御入侵，守护核心</p>
+        <div class="start-currency">
+            <span>💰</span> <span id="start-gold">0</span>
+        </div>
+        <button class="btn-large btn-start" onclick="launchGame()" style="width: 100%; max-width: 400px; margin: 0 auto;">
+            启动防御协议 (START)
+        </button>
+        <div style="margin-top: 40px; opacity: 0.6; font-size: 14px;">
+            <button class="btn-large" onclick="showRuneWorkshop()" style="background: rgba(77, 238, 234, 0.2); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); width: 100%; max-width: 400px; margin: 0 auto;">
+                前往符文模组库
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 符文模组库界面 -->
+<div id="rune-workshop-layer">
+    <div id="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="workshop-header">
+                <div class="section-header">符文模组库</div>
+                <button class="btn-large" onclick="showStartScreen()" style="background: rgba(255,255,255,0.1); color: var(--text-main); padding: 8px 20px; font-size: 14px;">
+                    返回
+                </button>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column;">
+                <div class="rune-list" id="rune-list">
+                    <!-- JS 生成 -->
+                </div>
+            </div>
+            
+            <div>
+                <button class="btn-large btn-start" onclick="launchGame()">
+                    启动防御协议 (START)
+                </button>
+            </div>
+        </aside>
+
+        <!-- 详情面板 -->
+        <main class="main-panel" id="main-panel">
+            <button class="detail-close-btn" onclick="closeDetailPanel()" title="收起">×</button>
+            <div class="top-currency">
+                <span>💰</span> <span id="menu-gold">0</span>
+            </div>
+
+            <div id="detail-view">
+                <!-- JS 填充 -->
+            </div>
+            
+            <div style="position:absolute; bottom:30px; left:60px; opacity:0.5; font-size:12px;">
+                <span style="margin-right:20px;"><span class="key-hint">ESC</span>返回</span>
+                <span style="margin-right:20px;"><span class="key-hint">↑↓</span>选择</span>
+                <span><span class="key-hint">ENTER</span>升级</span>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 结果界面 -->
+<div id="result-layer">
+    <div class="result-screen">
+        <h1 class="result-title" id="result-title">防御成功!</h1>
+        <p class="result-info" id="result-info">援军已抵达</p>
+        <div class="result-gold">
+            <div style="font-size: 18px; color: var(--text-dim); margin-bottom: 10px;">本局获得</div>
+            <div style="font-size: 32px;">
+                <span>💰</span> <span id="result-gold-amount">0</span>
+            </div>
+            <div style="font-size: 16px; color: var(--text-dim); margin-top: 15px;">
+                总金币: <span style="color: var(--accent-gold);">💰 <span id="result-total-gold">0</span></span>
+            </div>
+        </div>
+        <div class="result-buttons">
+            <button class="btn-large btn-start" onclick="showRuneWorkshop()">
+                前往符文模组库
+            </button>
+            <button class="btn-large" onclick="showStartScreen()" style="background: rgba(255,255,255,0.1); color: var(--text-main);">
+                返回主界面
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 游戏 HUD -->
+<div id="hud-layer">
+    <div class="hud-top">
+        <div class="hud-item" style="color:var(--accent-cyan)">
+            <span>⏱</span> <span id="hud-time">30</span>
+        </div>
+        <div class="hud-item" style="color:var(--accent-green)">
+            <span>CORE</span>
+            <div class="hud-hp-bar"><div class="hud-hp-fill" id="hud-hp"></div></div>
+        </div>
+        <div class="hud-item" style="color:var(--accent-gold)">
+            <span>💰</span> <span id="hud-gold">0</span>
+        </div>
+    </div>
+    
+    <div class="hud-bottom">
+        画 <b style="color:var(--accent-cyan)">|</b> 雷击 &nbsp;&nbsp; 画 <b style="color:var(--accent-green)">O</b> 护盾 &nbsp;&nbsp; 画 <b style="color:var(--accent-gold)">—</b> 横扫
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. 数据与配置
+    // ==========================================
+    const CONFIG = {
+        levelDuration: 30, // 关卡时长(秒)
+        baseWidth: 140,
+        baseHeight: 90
+    };
+
+    let playerData = {
+        gold: 500,
+        runes: [
+            {
+                id: 'lightning', title: '雷霆打击', sub: '单体 / 绘制竖线',
+                desc: '召唤高能闪电，对路径上的敌人造成巨额伤害。基础防守手段。',
+                path: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+                color: '#4deeea', level: 1, maxLevel: 5, price: 0,
+                damage: 50 // 基础伤害
+            },
+            {
+                id: 'shield', title: '庇护屏障', sub: '防御 / 绘制圆圈',
+                desc: '在指定位置生成光子护盾，阻挡敌人前进。升级提升护盾耐久度。',
+                path: 'M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-4-8-8s4-8 8-8 8 4 8 8-4 8-8 8z',
+                color: '#2ed573', level: 0, maxLevel: 3, price: 150,
+                hp: 60
+            },
+            {
+                id: 'shockwave', title: '裂地冲击', sub: '清场 / 绘制横线',
+                desc: '释放全屏宽度的震荡波，击退并伤害所有敌人。应对怪潮的终极手段。',
+                path: 'M4 12h16', 
+                color: '#f9ca24', level: 0, maxLevel: 3, price: 200,
+                damage: 20
+            }
+        ]
+    };
+
+    let game = {
+        state: 'MENU', // MENU, PLAYING
+        hp: 100,
+        time: 0,
+        goldEarned: 0, // 本局获得
+        shake: 0,
+        lastTime: 0,
+        spawnTimer: 0
+    };
+
+    // 实体容器
+    let entities = {
+        enemies: [],
+        spells: [],
+        buildings: [],
+        particles: [],
+        points: [] // 笔触
+    };
+
+    // DOM 引用
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startLayer = document.getElementById('start-layer');
+    const runeWorkshopLayer = document.getElementById('rune-workshop-layer');
+    const resultLayer = document.getElementById('result-layer');
+    const hudLayer = document.getElementById('hud-layer');
+    const hudTime = document.getElementById('hud-time');
+    const hudHp = document.getElementById('hud-hp');
+    const hudGold = document.getElementById('hud-gold');
+    const toastEl = document.getElementById('message-toast');
+    
+    let width, height;
+
+    // ==========================================
+    // 2. 界面管理逻辑
+    // ==========================================
+    let selectedRuneIdx = 0;
+
+    // 显示启动界面
+    function showStartScreen() {
+        // 隐藏其他界面层，但保留启动界面
+        runeWorkshopLayer.style.opacity = 0;
+        resultLayer.style.opacity = 0;
+        setTimeout(() => {
+            runeWorkshopLayer.style.display = 'none';
+            resultLayer.style.display = 'none';
+            // 确保启动界面显示
+            startLayer.style.display = 'flex';
+            setTimeout(() => { startLayer.style.opacity = 1; }, 50);
+        }, 500);
+        document.getElementById('start-gold').innerText = playerData.gold;
+    }
+
+    // 显示符文模组库
+    function showRuneWorkshop() {
+        // 隐藏启动界面和其他界面层（用户交互后才隐藏）
+        startLayer.style.opacity = 0;
+        resultLayer.style.opacity = 0;
+        setTimeout(() => {
+            startLayer.style.display = 'none';
+            resultLayer.style.display = 'none';
+            runeWorkshopLayer.style.display = 'flex';
+            setTimeout(() => { runeWorkshopLayer.style.opacity = 1; }, 50);
+        }, 500);
+        renderRuneList();
+        renderRuneDetail();
+        document.getElementById('menu-gold').innerText = playerData.gold;
+        // 默认收起详情面板
+        closeDetailPanel();
+    }
+
+    // 隐藏所有界面层
+    function hideAllLayers() {
+        startLayer.style.opacity = 0;
+        runeWorkshopLayer.style.opacity = 0;
+        resultLayer.style.opacity = 0;
+        setTimeout(() => {
+            startLayer.style.display = 'none';
+            runeWorkshopLayer.style.display = 'none';
+            resultLayer.style.display = 'none';
+        }, 500);
+    }
+
+    function initRuneWorkshop() {
+        renderRuneList();
+        renderRuneDetail();
+        document.getElementById('menu-gold').innerText = playerData.gold;
+    }
+
+    function renderRuneList() {
+        const listEl = document.getElementById('rune-list');
+        listEl.innerHTML = '';
+        playerData.runes.forEach((rune, idx) => {
+            const el = document.createElement('div');
+            const isLocked = rune.level === 0;
+            const isActive = idx === selectedRuneIdx;
+            el.className = `rune-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`;
+            
+            if (!isLocked) {
+                el.onclick = () => { 
+                    selectedRuneIdx = idx; 
+                    renderRuneList(); 
+                    renderRuneDetail(); 
+                    expandDetailPanel();
+                };
+            }
+            
+            let status = `Lv.${rune.level}/${rune.maxLevel}`;
+            if(rune.level === 0) status = "未解锁";
+            if(rune.level === rune.maxLevel) status = "已满级";
+
+            el.innerHTML = `
+                <svg class="rune-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${rune.path}"></path></svg>
+                <div class="rune-item-title">${rune.title}</div>
+                <div class="rune-item-level">${status}</div>
+                ${isLocked ? '<div class="rune-item-locked-badge">🔒</div>' : ''}
+            `;
+            listEl.appendChild(el);
+        });
+    }
+
+    function renderRuneDetail() {
+        const rune = playerData.runes[selectedRuneIdx];
+        const detailEl = document.getElementById('detail-view');
+        
+        let cost = 0, btnText = "", btnState = "";
+        if(rune.level === 0) { cost = rune.price; btnText = "解锁"; }
+        else if(rune.level < rune.maxLevel) { cost = 100 + rune.level * 50; btnText = "升级"; }
+        else { btnText = "已满级"; btnState = "disabled"; }
+
+        if(playerData.gold < cost && btnState !== "disabled") btnState = "disabled";
+
+        let pips = '';
+        for(let i=0; i<rune.maxLevel; i++) pips += `<div class="pip ${i < rune.level ? 'active' : ''}" style="--accent-cyan:${rune.color}"></div>`;
+
+        detailEl.innerHTML = `
+            <div style="margin-bottom:20px;">
+                <span class="detail-type" style="color:${rune.color}">${rune.sub}</span>
+                <h1 class="detail-title">${rune.title}</h1>
+            </div>
+            <div class="level-progress">${pips}</div>
+            <div class="detail-desc">${rune.desc}</div>
+            <div class="gesture-preview">
+                <svg class="preview-svg" viewBox="0 0 24 24" style="color:${rune.color}">
+                    <path class="preview-path" d="${rune.path}" stroke-dasharray="100"></path>
+                </svg>
+            </div>
+            <div class="action-area">
+                <button class="btn-large ${btnState}" onclick="upgradeRune()">
+                    <span class="key-hint">ENTER</span> ${btnText} 
+                    ${cost > 0 && rune.level < rune.maxLevel ? `<span class="cost-tag" style="font-size:14px; margin-left:10px;">/ ${cost} 💰</span>` : ''}
+                </button>
+            </div>
+        `;
+    }
+
+    function expandDetailPanel() {
+        const panel = document.getElementById('main-panel');
+        panel.classList.add('expanded');
+    }
+
+    function closeDetailPanel() {
+        const panel = document.getElementById('main-panel');
+        panel.classList.remove('expanded');
+    }
+
+    function upgradeRune() {
+        const rune = playerData.runes[selectedRuneIdx];
+        let cost = rune.level === 0 ? rune.price : 100 + rune.level * 50;
+        
+        if (rune.level < rune.maxLevel && playerData.gold >= cost) {
+            playerData.gold -= cost;
+            rune.level++;
+            document.getElementById('menu-gold').innerText = playerData.gold;
+            document.getElementById('start-gold').innerText = playerData.gold;
+            renderRuneList();
+            renderRuneDetail();
+        }
+    }
+
+    function launchGame() {
+        // 隐藏启动界面（用户交互后才隐藏）
+        startLayer.style.opacity = 0;
+        setTimeout(() => {
+            startLayer.style.display = 'none';
+            hudLayer.style.display = 'block';
+        }, 500);
+
+        // 初始化游戏状态
+        game.state = 'PLAYING';
+        game.hp = 100;
+        game.time = 0;
+        game.goldEarned = 0;
+        
+        // 清空实体
+        entities.enemies = [];
+        entities.spells = [];
+        entities.buildings = [];
+        entities.particles = [];
+        entities.points = [];
+
+        // UI重置
+        hudHp.style.width = "100%";
+        hudHp.style.backgroundColor = "var(--accent-green)";
+        hudGold.innerText = playerData.gold;
+
+        // 启动循环
+        game.lastTime = performance.now();
+        requestAnimationFrame(loop);
+    }
+
+    function showResultScreen(msg, isWin) {
+        game.state = 'MENU';
+        hudLayer.style.display = 'none';
+        
+        // 结算
+        playerData.gold += game.goldEarned;
+        
+        // 显示结果界面
+        const resultTitle = document.getElementById('result-title');
+        const resultInfo = document.getElementById('result-info');
+        const resultGoldAmount = document.getElementById('result-gold-amount');
+        const resultTotalGold = document.getElementById('result-total-gold');
+        
+        resultTitle.className = `result-title ${isWin ? 'win' : 'lose'}`;
+        resultTitle.innerText = isWin ? '防御成功!' : '基地沦陷...';
+        resultInfo.innerText = msg;
+        resultGoldAmount.innerText = game.goldEarned;
+        resultTotalGold.innerText = playerData.gold;
+        
+        hideAllLayers();
+        resultLayer.style.display = 'flex';
+        setTimeout(() => { resultLayer.style.opacity = 1; }, 50);
+        
+        // 更新启动界面的金币显示
+        document.getElementById('start-gold').innerText = playerData.gold;
+    }
+
+    // ==========================================
+    // 3. 游戏核心逻辑
+    // ==========================================
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    // 启动时显示启动界面，不调用hideAllLayers，直接显示
+    startLayer.style.display = 'flex';
+    startLayer.style.opacity = 1;
+    document.getElementById('start-gold').innerText = playerData.gold;
+
+    // 输入处理
+    let isDrawing = false;
+    const getPos = (e) => { const t=e.touches?e.touches[0]:e; return {x:t.clientX, y:t.clientY}; };
+    
+    const startDraw = (e) => { 
+        if(game.state !== 'PLAYING') return;
+        isDrawing=true; entities.points=[getPos(e)]; 
+    };
+    const moveDraw = (e) => { 
+        if(!isDrawing) return; 
+        if(e.cancelable) e.preventDefault();
+        entities.points.push(getPos(e));
+        if(entities.points.length > 60) entities.points.shift();
+    };
+    const endDraw = () => { 
+        if(!isDrawing) return; 
+        isDrawing=false; recognize(entities.points); entities.points=[]; 
+    };
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', moveDraw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('touchstart', startDraw, {passive:false});
+    canvas.addEventListener('touchmove', moveDraw, {passive:false});
+    canvas.addEventListener('touchend', endDraw);
+
+    // 符文识别
+    function recognize(pts) {
+        if(pts.length < 5) return;
+        let minX=width, maxX=0, minY=height, maxY=0;
+        pts.forEach(p => { minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+        
+        const w = maxX - minX;
+        const h = maxY - minY;
+        const center = {x: minX+w/2, y: minY+h/2};
+        const dist = Math.hypot(pts[0].x - pts[pts.length-1].x, pts[0].y - pts[pts.length-1].y);
+
+        const rLightning = playerData.runes[0];
+        const rShield = playerData.runes[1];
+        const rShock = playerData.runes[2];
+
+        // 1. 圆圈 (Shield)
+        if(dist < 80 && w > 30 && h > 30 && w/h > 0.6 && w/h < 1.6) {
+            if(rShield.level > 0) createShield(center.x, center.y, rShield);
+            else showFloatingText(center.x, center.y, "未解锁", "#888");
+            return;
+        }
+
+        // 2. 竖线 (Lightning)
+        if(h > w * 1.5 && h > 50) {
+            if(rLightning.level > 0) castLightning(pts, minX, maxX, minY, maxY, rLightning);
+            return;
+        }
+
+        // 3. 横线 (Shockwave)
+        if(w > h * 2.5 && w > 80) {
+            if(rShock.level > 0) castShockwave(minY + h/2, rShock);
+            else showFloatingText(center.x, center.y, "未解锁", "#888");
+        }
+    }
+
+    // 技能效果
+    function castLightning(pts, minX, maxX, minY, maxY, rune) {
+        entities.spells.push({ type: 'lightning', pts: [...pts], life: 20 });
+        const margin = 40;
+        let hit = false;
+        entities.enemies.forEach(e => {
+            if(e.x > minX-margin && e.x < maxX+margin && e.y > minY-margin && e.y < maxY+margin) {
+                e.hp -= (rune.damage + rune.level * 10);
+                e.hitTimer = 5;
+                e.y -= 20; // 击退
+                createParticles(e.x, e.y, rune.color, 8);
+                hit = true;
+                checkDeath(e);
+            }
+        });
+        if(hit) game.shake = 5;
+    }
+
+    function createShield(x, y, rune) {
+        if(entities.buildings.length >= 2) entities.buildings.shift();
+        let maxHp = rune.hp + rune.level * 20;
+        entities.buildings.push({ x: x, y: y, hp: maxHp, maxHp: maxHp, color: rune.color });
+    }
+
+    function castShockwave(y, rune) {
+        entities.spells.push({ type: 'shockwave', y: y, life: 30, color: rune.color });
+        entities.enemies.forEach(e => {
+            if(Math.abs(e.y - y) < 60) {
+                e.hp -= (rune.damage + rune.level * 5);
+                e.y -= 100; // 强力击退
+                e.hitTimer = 10;
+                createParticles(e.x, e.y, rune.color, 5);
+                checkDeath(e);
+            }
+        });
+        game.shake = 10;
+    }
+
+    function checkDeath(e) {
+        if(e.hp <= 0 && !e.dead) {
+            e.dead = true;
+            game.goldEarned += 5;
+            hudGold.innerText = playerData.gold + game.goldEarned;
+        }
+    }
+
+    // 游戏循环
+    function update(dt) {
+        game.time += dt / 1000;
+        
+        // 胜负判断
+        if(game.time >= CONFIG.levelDuration) {
+            showResultScreen("援军已抵达", true);
+            return;
+        }
+
+        // HUD 更新
+        hudTime.innerText = Math.ceil(CONFIG.levelDuration - game.time);
+        hudHp.style.width = game.hp + "%";
+        if(game.hp < 30) hudHp.style.backgroundColor = "var(--accent-red)";
+
+        // 刷怪 (难度随时间增加)
+        game.spawnTimer += dt;
+        let rate = 2000;
+        let speedMult = 1.0;
+        if(game.time > 20) { rate = 600; speedMult = 1.4; }
+        else if(game.time > 10) { rate = 1200; speedMult = 1.2; }
+        
+        if(game.spawnTimer > rate) {
+            // 15% 概率生成列队（2-3个敌人）
+            if(Math.random() < 0.15) {
+                spawnEnemyFormation(speedMult);
+            } else {
+                spawnEnemy(speedMult);
+            }
+            game.spawnTimer = 0;
+        }
+
+        const baseX = width/2;
+        const baseY = height;
+
+        // 实体更新: 敌人
+        entities.enemies.forEach(e => {
+            if(e.dead) return;
+            if(e.hitTimer > 0) e.hitTimer--;
+
+            // 移动
+            let dx = baseX - e.x, dy = baseY - e.y;
+            let dist = Math.hypot(dx, dy);
+            e.x += (dx/dist) * e.speed * 1.2;
+            e.y += (dy/dist) * e.speed * 1.2;
+
+            // 撞盾
+            for(let b of entities.buildings) {
+                if(Math.hypot(e.x - b.x, e.y - b.y) < 40 + e.w/2) {
+                    e.dead = true;
+                    b.hp -= 20;
+                    createParticles(e.x, e.y, '#fff', 5);
+                    return;
+                }
+            }
+            // 撞家
+            if(e.y > height - CONFIG.baseHeight - 10 && e.x > baseX - CONFIG.baseWidth/2 && e.x < baseX + CONFIG.baseWidth/2) {
+                e.dead = true;
+                takeDamage(10);
+                createParticles(e.x, e.y, 'var(--accent-red)', 10);
+            }
+        });
+
+        // 清理
+        entities.enemies = entities.enemies.filter(e => !e.dead);
+        entities.buildings = entities.buildings.filter(b => b.hp > 0);
+        entities.spells = entities.spells.filter(s => s.life-- > 0);
+        entities.particles = entities.particles.filter(p => {
+            p.x += p.vx; p.y += p.vy; p.life--;
+            return p.life > 0;
+        });
+
+        // 震动衰减
+        if(game.shake > 0) { game.shake *= 0.9; if(game.shake < 0.5) game.shake = 0; }
+    }
+
+    function spawnEnemy(mult) {
+        let r = Math.random();
+        let ex, ey;
+        if(r < 0.3) { ex = Math.random()*width; ey = -30; }
+        else if (r < 0.65) { ex = -30; ey = Math.random()*(height*0.7); }
+        else { ex = width+30; ey = Math.random()*(height*0.7); }
+        
+        entities.enemies.push({
+            x: ex, y: ey, w: 24,
+            speed: (0.5 + Math.random()*0.5) * mult,
+            hp: 30 * mult,
+            color: Math.random() > 0.5 ? '#ff4757' : '#a29bfe',
+            hitTimer: 0
+        });
+    }
+
+    // 生成列队敌人（2-3个一列）
+    function spawnEnemyFormation(mult) {
+        let r = Math.random();
+        let count = Math.random() < 0.5 ? 2 : 3; // 50%概率2个，50%概率3个
+        let baseSpeed = (0.5 + Math.random()*0.5) * mult;
+        let baseHp = 30 * mult;
+        let spacing = 35; // 敌人之间的间距
+        
+        if(r < 0.3) {
+            // 从上方生成 - 垂直列队
+            let baseX = Math.random()*width;
+            let baseY = -30;
+            for(let i = 0; i < count; i++) {
+                entities.enemies.push({
+                    x: baseX + (Math.random()-0.5)*10, // 稍微随机偏移，看起来更自然
+                    y: baseY - i * spacing,
+                    w: 24,
+                    speed: baseSpeed * (0.9 + Math.random()*0.2), // 速度略有变化
+                    hp: baseHp,
+                    color: Math.random() > 0.5 ? '#ff4757' : '#a29bfe',
+                    hitTimer: 0
+                });
+            }
+        } else if (r < 0.65) {
+            // 从左侧生成 - 水平列队
+            let baseX = -30;
+            let baseY = Math.random()*(height*0.7);
+            for(let i = 0; i < count; i++) {
+                entities.enemies.push({
+                    x: baseX - i * spacing,
+                    y: baseY + (Math.random()-0.5)*10,
+                    w: 24,
+                    speed: baseSpeed * (0.9 + Math.random()*0.2),
+                    hp: baseHp,
+                    color: Math.random() > 0.5 ? '#ff4757' : '#a29bfe',
+                    hitTimer: 0
+                });
+            }
+        } else {
+            // 从右侧生成 - 水平列队
+            let baseX = width + 30;
+            let baseY = Math.random()*(height*0.7);
+            for(let i = 0; i < count; i++) {
+                entities.enemies.push({
+                    x: baseX + i * spacing,
+                    y: baseY + (Math.random()-0.5)*10,
+                    w: 24,
+                    speed: baseSpeed * (0.9 + Math.random()*0.2),
+                    hp: baseHp,
+                    color: Math.random() > 0.5 ? '#ff4757' : '#a29bfe',
+                    hitTimer: 0
+                });
+            }
+        }
+    }
+
+    function takeDamage(amt) {
+        game.hp -= amt;
+        game.shake = 15;
+        const flash = document.getElementById('fx-flash');
+        flash.style.opacity = 0.5;
+        setTimeout(()=>flash.style.opacity=0, 100);
+        
+        if(game.hp <= 0) {
+            game.hp = 0;
+            showResultScreen("防守失败", false);
+        }
+    }
+
+    function createParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            entities.particles.push({
+                x, y, color,
+                vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
+                life: 30
+            });
+        }
+    }
+
+    function showFloatingText(x, y, text, color) {
+        // 简化版：直接用粒子系统模拟文字
+    }
+
+    function showToast(msg) {
+        toastEl.innerText = msg;
+        toastEl.style.opacity = 1;
+        setTimeout(() => toastEl.style.opacity = 0, 3000);
+    }
+
+    // ==========================================
+    // 4. 渲染循环
+    // ==========================================
+    function loop(now) {
+        const dt = now - game.lastTime;
+        game.lastTime = now;
+        
+        if(game.state === 'PLAYING') update(dt);
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height); // 背景由 CSS 负责
+
+        ctx.save();
+        if(game.shake > 0) ctx.translate((Math.random()-0.5)*game.shake, (Math.random()-0.5)*game.shake);
+
+        // 1. 基地
+        drawBase();
+
+        // 2. 建筑 (Shield)
+        entities.buildings.forEach(b => {
+            ctx.strokeStyle = b.color;
+            ctx.fillStyle = b.color.replace(')', ',0.1)').replace('rgb', 'rgba');
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(b.x, b.y, 40, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 血条
+            ctx.fillStyle = b.color;
+            ctx.fillRect(b.x-20, b.y+50, 40*(b.hp/b.maxHp), 4);
+        });
+
+        // 3. 敌人
+        entities.enemies.forEach(e => {
+            ctx.fillStyle = e.hitTimer > 0 ? '#fff' : e.color;
+            ctx.beginPath();
+            // 圆角矩形
+            const r=4, w=e.w;
+            ctx.roundRect(e.x-w/2, e.y-w/2, w, w, r);
+            ctx.fill();
+            // 眼睛
+            ctx.fillStyle = '#000';
+            ctx.fillRect(e.x-5, e.y-2, 3, 3); ctx.fillRect(e.x+2, e.y-2, 3, 3);
+        });
+
+        // 4. 特效
+        entities.spells.forEach(s => {
+            if(s.type === 'lightning') {
+                ctx.strokeStyle = 'var(--accent-cyan)';
+                ctx.lineWidth = 3; ctx.shadowBlur = 15; ctx.shadowColor = '#4deeea';
+                ctx.beginPath();
+                if(s.pts.length) ctx.moveTo(s.pts[0].x, s.pts[0].y);
+                for(let i=1; i<s.pts.length; i++) {
+                    let jit = (Math.random()-0.5)*20;
+                    ctx.lineTo(s.pts[i].x+jit, s.pts[i].y);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            } else if (s.type === 'shockwave') {
+                ctx.strokeStyle = s.color;
+                ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(width, s.y); ctx.stroke();
+            }
+        });
+
+        // 5. 粒子
+        entities.particles.forEach(p => {
+            ctx.fillStyle = p.color; ctx.globalAlpha = p.life/30;
+            ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1;
+        });
+
+        // 6. 笔触
+        if(isDrawing && entities.points.length) {
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(entities.points[0].x, entities.points[0].y);
+            for(let i=1; i<entities.points.length; i++) ctx.lineTo(entities.points[i].x, entities.points[i].y);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    function drawBase() {
+        const cx = width/2, cy = height, w = CONFIG.baseWidth, h = CONFIG.baseHeight;
+        const dmg = 1 - (game.hp/100);
+        
+        ctx.strokeStyle = game.hp < 30 ? 'var(--accent-red)' : 'var(--accent-green)';
+        ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
+
+        // 断裂线条绘制
+        const p1={x:cx-w/2,y:cy}, p2={x:cx-w/2,y:cy-h}, p3={x:cx+w/2,y:cy-h}, p4={x:cx+w/2,y:cy};
+        drawBroken(p1, p2, dmg); drawBroken(p2, p3, dmg); drawBroken(p3, p4, dmg);
+
+        // 核心
+        ctx.fillStyle = `rgba(255,255,255,${0.2+game.hp/200})`;
+        ctx.fillRect(cx-20, cy-30, 40, 30);
+        ctx.shadowBlur = 0;
+    }
+
+    function drawBroken(s, e, dmg) {
+        if(dmg < 0.1) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); ctx.stroke(); return; }
+        const segs = 8; const dx=(e.x-s.x)/segs, dy=(e.y-s.y)/segs;
+        ctx.beginPath();
+        for(let i=0; i<segs; i++) {
+            if(Math.random() > dmg * 0.7) {
+                let jx=(Math.random()-0.5)*dmg*5, jy=(Math.random()-0.5)*dmg*5;
+                ctx.moveTo(s.x+dx*i+jx, s.y+dy*i+jy); ctx.lineTo(s.x+dx*(i+1)+jx, s.y+dy*(i+1)+jy);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // 键盘支持
+    window.addEventListener('keydown', (e) => {
+        if(game.state === 'MENU' && runeWorkshopLayer.style.display === 'flex') {
+            if(e.key === 'ArrowUp') { selectedRuneIdx = (selectedRuneIdx-1+playerData.runes.length)%playerData.runes.length; renderRuneList(); renderRuneDetail(); }
+            else if(e.key === 'ArrowDown') { selectedRuneIdx = (selectedRuneIdx+1)%playerData.runes.length; renderRuneList(); renderRuneDetail(); }
+            else if(e.key === 'Enter') upgradeRune();
+            else if(e.key === 'Escape') showStartScreen();
+        }
+    });
+
+</script>
+</body>
+</html>

@@ -3,3 +3,29 @@
 /dist.tar.gz
 /Gemfile.lock
 /.jekyll-cache
+
+# Vite / Node
+node_modules
+dist-ssr
+*.local
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated blog data (from content/blog via scripts/build-blog-index.mjs)
+/public/data/blog/index.json
+/public/data/blog/articles/*.json
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

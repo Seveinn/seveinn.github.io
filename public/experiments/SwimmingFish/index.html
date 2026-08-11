@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Step 5: Contour Markers (中文)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222831;
+            font-family: 'Microsoft YaHei', sans-serif;
+            color: #eeeeee;
+        }
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #393e46; }
+        ::-webkit-scrollbar-thumb { background: #00adb5; border-radius: 3px; }
+
+        /* 面板样式 */
+        #panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            max-height: 90vh;
+            background: rgba(57, 62, 70, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #f9ed69; /* 改成黄色装饰条，呼应轮廓点 */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            z-index: 10;
+        }
+
+        .section-title {
+            font-size: 14px;
+            color: #f9ed69; /* 黄色标题 */
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .control-group { margin-bottom: 12px; }
+        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: #ccc; }
+        span.value { color: #fff; font-weight: bold; font-family: monospace; }
+        
+        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px;
+            border-radius: 50%; background: #00adb5; cursor: pointer;
+            margin-top: -5px; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #222831; border-radius: 2px;
+        }
+
+        #radius-list { overflow-y: auto; flex-grow: 1; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1); }
+        .radius-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; }
+        .radius-item span.index { width: 30px; color: #00adb5; }
+        .radius-item input { flex-grow: 1; margin: 0 10px; }
+        .radius-item span.val { width: 20px; text-align: right; }
+        
+        /* 说明文字 */
+        .legend {
+            font-size: 11px; color: #aaa; margin-top: 10px;
+        }
+        .dot-yellow { color: #f9ed69; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="panel">
+        <div class="section-title">参数设置</div>
+        <div class="control-group">
+            <label>跟随点数量 <span id="val-count" class="value">5</span></label>
+            <input type="range" id="count" min="2" max="30" value="6">
+        </div>
+        <div class="control-group">
+            <label>头部半径 <span id="val-head" class="value">20</span></label>
+            <input type="range" id="headRadius" min="10" max="50" value="20">
+        </div>
+        <div class="control-group">
+            <label>节点间距 <span id="val-spacing" class="value">25</span></label>
+            <input type="range" id="spacing" min="10" max="60" value="25">
+        </div>
+        <div class="control-group">
+            <label>最大弯曲角度 <span id="val-angle" class="value">45</span></label>
+            <input type="range" id="angleConstraint" min="0" max="180" value="45">
+        </div>
+
+        <div class="section-title">半径控制</div>
+        <div id="radius-list"></div>
+        
+        <div class="legend">
+            <span class="dot-yellow">●</span> 黄色点为轮廓生成锚点
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let width, height;
+let mouse = { x: 0, y: 0 };
+
+class Point {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+// --- 状态数据 ---
+const state = {
+    headRadius: 20,
+    spacing: 25,
+    followerCount: 6,
+    maxAngleDeg: 45,
+    maxAngleRad: (45 * Math.PI) / 180,
+    points: [],
+    radii: [] 
+};
+
+function init() {
+    state.points = [new Point(window.innerWidth/2, window.innerHeight/2)];
+    updateFollowers(state.followerCount);
+    updateAngle(45);
+}
+
+// --- 核心更新逻辑 ---
+function updateFollowers(newCount) {
+    const currentCount = state.points.length - 1;
+    const diff = newCount - currentCount;
+    if (diff > 0) {
+        for (let i = 0; i < diff; i++) {
+            let lastP = state.points[state.points.length - 1];
+            state.points.push(new Point(lastP.x, lastP.y));
+            // 默认半径给个变化，让形状更有趣
+            state.radii.push(15 - (i % 5) * 2); 
+        }
+    } else if (diff < 0) {
+        state.points.length = newCount + 1;
+        state.radii.length = newCount;
+    }
+    state.followerCount = newCount;
+    renderRadiusUI();
+}
+
+function updateAngle(deg) {
+    state.maxAngleDeg = deg;
+    state.maxAngleRad = (deg * Math.PI) / 180;
+    let displayVal = deg;
+    if (deg >= 179) displayVal = "无限制";
+    document.getElementById('val-angle').innerText = displayVal;
+}
+
+// --- 物理引擎 (IK + 角度约束) ---
+function resolveConstraints() {
+    // 头部
+    let head = state.points[0];
+    head.x += (mouse.x - head.x) * 0.1;
+    head.y += (mouse.y - head.y) * 0.1;
+
+    // 身体
+    for (let i = 1; i < state.points.length; i++) {
+        let cur = state.points[i];
+        let prev = state.points[i-1];
+        let dx = cur.x - prev.x;
+        let dy = cur.y - prev.y;
+        let targetAngle = Math.atan2(dy, dx);
+
+        if (i > 1) {
+            let prev2 = state.points[i-2];
+            let parentAngle = Math.atan2(prev.y - prev2.y, prev.x - prev2.x);
+            let diff = targetAngle - parentAngle;
+            while (diff <= -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            
+            const max = state.maxAngleRad;
+            if (diff > max) diff = max;
+            if (diff < -max) diff = -max;
+            targetAngle = parentAngle + diff;
+        }
+
+        cur.x = prev.x + Math.cos(targetAngle) * state.spacing;
+        cur.y = prev.y + Math.sin(targetAngle) * state.spacing;
+    }
+}
+
+// --- 绘图辅助函数：绘制黄色定位点 ---
+function drawMarker(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#f9ed69'; // 高亮黄
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+// --- 核心：渲染循环 ---
+function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    // 1. 绘制骨架连线
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 2;
+    ctx.moveTo(state.points[0].x, state.points[0].y);
+    for (let i = 1; i < state.points.length; i++) ctx.lineTo(state.points[i].x, state.points[i].y);
+    ctx.stroke();
+
+    // 2. 遍历所有节点
+    for (let i = 0; i < state.points.length; i++) {
+        let p = state.points[i];
+        let r = (i === 0) ? state.headRadius : state.radii[i - 1];
+        
+        // 绘制身体主节点（蓝/白球）
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = (i === 0) ? 'rgba(255,255,255,0.2)' : 'rgba(0, 173, 181, 0.2)'; // 调淡一点，突出轮廓点
+        ctx.fill();
+        ctx.strokeStyle = (i === 0) ? '#fff' : '#00adb5';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // --- 核心新功能：计算轮廓定位点 ---
+        let theta; 
+
+        // 策略：计算当前节点的朝向角度
+        if (i === 0) {
+            // A. 头部：朝向基于它和下一个点的连线（或者鼠标方向，但连线更稳）
+            // 注意：因为是 p0 指向 p1 是向后的，所以这里取反，或者用 p0 - p1
+            let next = state.points[i + 1];
+            if (next) {
+                theta = Math.atan2(p.y - next.y, p.x - next.x);
+            } else {
+                theta = 0; // 只有一个点的情况
+            }
+        } else if (i === state.points.length - 1) {
+            // C. 尾部：朝向基于前一个点指向当前点
+            let prev = state.points[i - 1];
+            theta = Math.atan2(p.y - prev.y, p.x - prev.x);
+        } else {
+            // B. 中间节点：取切线方向 (上一个点 指向 下一个点)
+            // 这样可以让连接处更平滑，不会因为骨骼转折而突变
+            let prev = state.points[i - 1];
+            let next = state.points[i + 1];
+            theta = Math.atan2(prev.y - next.y, prev.x - next.x); // 这个方向也是“向前”的
+        }
+
+        // 计算定位点坐标
+        // 右侧 (theta + 90度)
+        let rx = p.x + Math.cos(theta + Math.PI/2) * r;
+        let ry = p.y + Math.sin(theta + Math.PI/2) * r;
+        
+        // 左侧 (theta - 90度)
+        let lx = p.x + Math.cos(theta - Math.PI/2) * r;
+        let ly = p.y + Math.sin(theta - Math.PI/2) * r;
+
+        // 绘制左右点
+        drawMarker(lx, ly);
+        drawMarker(rx, ry);
+
+        // 特殊处理：头部前方点
+        if (i === 0) {
+            let fx = p.x + Math.cos(theta) * r;
+            let fy = p.y + Math.sin(theta) * r;
+            drawMarker(fx, fy);
+        }
+
+        // 特殊处理：尾部末端点
+        if (i === state.points.length - 1) {
+            // 尾部方向 theta 是 prev -> curr，所以末端是继续沿着 theta 延伸
+            // 但因为我们这里的theta计算方式在头和尾稍有不同，
+            // 头部计算的是 "指向前方"，尾部计算的是 "prev -> curr" (也是指向后方)
+            // 让我们修正一下逻辑统一性：
+            // 我们的 theta 统一理解为 "脊柱朝向前方" 的方向。
+            
+            // 重新确认尾部方向： prev -> curr 是向后的向量。
+            // 所以末端点应该是 p + (cos(theta) * r, sin(theta) * r)
+            let ex = p.x + Math.cos(theta) * r;
+            let ey = p.y + Math.sin(theta) * r;
+            drawMarker(ex, ey);
+        }
+    }
+}
+
+// --- 系统事件 ---
+document.getElementById('count').addEventListener('input', (e) => {
+    let v = parseInt(e.target.value);
+    document.getElementById('val-count').innerText = v;
+    updateFollowers(v);
+});
+document.getElementById('headRadius').addEventListener('input', (e) => {
+    let v = parseInt(e.target.value);
+    document.getElementById('val-head').innerText = v;
+    state.headRadius = v;
+});
+document.getElementById('spacing').addEventListener('input', (e) => {
+    let v = parseInt(e.target.value);
+    document.getElementById('val-spacing').innerText = v;
+    state.spacing = v;
+});
+document.getElementById('angleConstraint').addEventListener('input', (e) => {
+    updateAngle(parseInt(e.target.value));
+});
+function renderRadiusUI() {
+    const list = document.getElementById('radius-list');
+    list.innerHTML = ''; 
+    for (let i = 0; i < state.followerCount; i++) {
+        const div = document.createElement('div');
+        div.className = 'radius-item';
+        const idx = document.createElement('span');
+        idx.className = 'index';
+        idx.innerText = `${i+1}`;
+        const range = document.createElement('input');
+        range.type = 'range';
+        range.min = 2; range.max = 30;
+        range.value = state.radii[i];
+        const valText = document.createElement('span');
+        valText.className = 'val';
+        valText.innerText = state.radii[i];
+        range.oninput = (e) => {
+            const v = parseInt(e.target.value);
+            state.radii[i] = v;
+            valText.innerText = v;
+        };
+        div.appendChild(idx); div.appendChild(range); div.appendChild(valText);
+        list.appendChild(div);
+    }
+}
+function animate() {
+    resolveConstraints();
+    draw();
+    requestAnimationFrame(animate);
+}
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    mouse.x = width/2; mouse.y = height/2;
+    state.points.forEach(p => { p.x = width/2; p.y = height/2; });
+}
+window.addEventListener('resize', resize);
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('touchmove', e => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; });
+init();
+resize();
+animate();
+
+</script>
+</body>
+</html>

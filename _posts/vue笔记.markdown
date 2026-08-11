@@ -16,15 +16,17 @@ v-if 动态地插入和销毁节点
 
 #### v-for中为何要用key
 ```
+vue会根据数据生成虚拟DOM，key作为索引值，当数据更新时，如果key值没有变，会复用之前的DOM，可能导致视图无法及时更新
 
+如果列表仅作渲染展示，可以用Index作为key值
+如果列表需要进行排序、增删等操作，最好使用ID等唯一标识
 ```
 
 #### Vue组件生命周期（有父子组件的情况）
 #### 组件通讯
 ```
-父子组件通信 props和$emit
-无关组件通信 自定义事件
-vuex
+父子组件通信 传参，比如： props和$emit
+无关组件通信 操作公用的数据池，比如vuex、缓存等
 ```
 #### 组件的渲染和更新过程
 #### 双向数据绑定 v-model的实现原理
@@ -575,6 +577,17 @@ const data = {
 observer(data);
 ```
 Proxy有兼容性问题，无法polyfill
+
+## composition API
+setup
+```
+beforeCreate之后调用
+```
+ref和reactive
+```
+ref 基础类型变量的响应式
+reactive 引用类型变量的响应式
+```
 
 ## vdom和diff
 vdom 是实现vue和React的重要基石

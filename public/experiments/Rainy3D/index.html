@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Cube & Rain</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; outline: none; }
+        #instruction {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            pointer-events: none;
+            opacity: 0.8;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="instruction">
+    WASD 移动立方体<br>
+    鼠标左键旋转 / 滚轮缩放
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+    // --- 1. 场景与相机 ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(20, 20, 40);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // --- 2. 参数配置 ---
+    const params = {
+        cubeSize: 20,          // [新增] 立方体尺寸
+        moveSpeed: 0.5,        // [新增] 移动速度
+        
+        rainCount: 1000,
+        rainRange: 150,
+        rainSpeed: 1.5,
+        enableSplash: true,
+        splashSize: 1.0,
+        rippleThickness: 0.15,
+        pause: false
+    };
+
+    // --- 3. 键盘输入状态管理 (WASD) ---
+    const keys = { w: false, a: false, s: false, d: false };
+    
+    window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) keys[key] = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) keys[key] = false;
+    });
+
+    // --- 4. 立方体系统 ---
+    let cubeGroup; // 用于包含 Mesh 和 Edges
+    let cubeMesh, cubeEdges;
+    // 定义地面的基准高度 (世界坐标系的底部)
+    const groundBaseY = -15; 
+
+    function initCube() {
+        if (cubeGroup) {
+            scene.remove(cubeGroup);
+            if (cubeMesh) {
+                cubeMesh.geometry.dispose();
+                cubeMesh.material.dispose();
+            }
+            if (cubeEdges) {
+                cubeEdges.geometry.dispose();
+                cubeEdges.material.dispose();
+            }
+        }
+
+        cubeGroup = new THREE.Group();
+        
+        // 4.1 几何体
+        const s = params.cubeSize;
+        const geometry = new THREE.BoxGeometry(s, s, s);
+
+        // 4.2 实体材质 (用于遮挡和视觉)
+        const fillMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.DoubleSide
+        });
+        cubeMesh = new THREE.Mesh(geometry, fillMaterial);
+        
+        // 4.3 边框
+        const edgesGeo = new THREE.EdgesGeometry(geometry);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+        cubeEdges = new THREE.LineSegments(edgesGeo, lineMat);
+
+        cubeGroup.add(cubeMesh);
+        cubeGroup.add(cubeEdges);
+
+        // 初始位置：放在地面上方，刚好接触地面
+        // BoxGeometry 中心在 (0,0,0)，所以 mesh 的 y 需要设为 groundBaseY + size/2
+        cubeGroup.position.set(0, groundBaseY + s / 2, 0);
+
+        scene.add(cubeGroup);
+    }
+
+    initCube();
+
+    // --- 5. GUI 设置 ---
+    const gui = new GUI({ title: "控制面板" });
+    
+    const folderCube = gui.addFolder('立方体控制');
+    folderCube.add(params, 'cubeSize', 2, 30, 1).name('立方体尺寸').onChange(initCube);
+    folderCube.add(params, 'moveSpeed', 0.1, 2.0).name('移动速度');
+
+    const folderRain = gui.addFolder('雨水系统');
+    folderRain.add(params, 'rainCount', 100, 5000, 100).name('雨丝密度').onFinishChange(initRainSystem);
+    folderRain.add(params, 'rainRange', 20, 300).name('降雨范围');
+    folderRain.add(params, 'rainSpeed', 0.1, 5.0).name('下落速度');
+    folderRain.add(params, 'enableSplash').name('开启水花');
+
+    // --- 6. 雨滴系统 ---
+    let rainSystem, rainPositions, rainVelocities;
+    const rainGeo = new THREE.BufferGeometry();
+
+    function initRainSystem() {
+        if (rainSystem) {
+            scene.remove(rainSystem);
+            rainGeo.dispose();
+        }
+        const count = params.rainCount;
+        rainPositions = new Float32Array(count * 6);
+        rainVelocities = new Float32Array(count);
+
+        for (let i = 0; i < count; i++) {
+            resetRainDrop(i, true);
+            rainVelocities[i] = Math.random() * 0.5 + params.rainSpeed;
+        }
+
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+        const rainMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.6 });
+        rainSystem = new THREE.LineSegments(rainGeo, rainMat);
+        scene.add(rainSystem);
+    }
+
+    function resetRainDrop(index, initial = false) {
+        const range = params.rainRange;
+        const x = (Math.random() - 0.5) * range;
+        const z = (Math.random() - 0.5) * range;
+        // 初始时分布在空中，重置时回到顶部
+        const y = initial ? Math.random() * 100 + groundBaseY : 80 + Math.random() * 20;
+
+        const i6 = index * 6;
+        rainPositions[i6] = x;
+        rainPositions[i6 + 1] = y;
+        rainPositions[i6 + 2] = z;
+        rainPositions[i6 + 3] = x;
+        rainPositions[i6 + 4] = y + 2; // 线条长度
+        rainPositions[i6 + 5] = z;
+    }
+
+    initRainSystem();
+
+    // --- 7. 特效系统 (涟漪与水花) ---
+    // 修改：createRipple 和 createSplash 现在需要传入 y 坐标，因为它们可能出现在地面或立方体顶面
+    const ripples = [];
+    const rippleGeometry = new THREE.RingGeometry(0.5, 0.65, 32);
+    rippleGeometry.rotateX(-Math.PI / 2);
+
+    function createRipple(x, y, z) {
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide
+        });
+        const ripple = new THREE.Mesh(rippleGeometry, material);
+        
+        // 动态调整波纹粗细
+        const thickness = params.rippleThickness;
+        // 由于 Geometry 共享，这里我们通过 scaling 来模拟一点变化，或者在 shader 中做，这里简单处理
+        // 若要严格控制粗细需重新生成 Geometry，考虑到性能，这里仅做 Mesh
+        
+        ripple.position.set(x, y + 0.05, z); // 稍微抬高一点防止z-fighting
+        ripple.scale.set(0.1, 0.1, 0.1);
+        scene.add(ripple);
+        ripples.push({ mesh: ripple, life: 1.0 });
+    }
+
+    const splashes = [];
+    function createSplash(x, y, z) {
+        if (!params.enableSplash) return;
+        
+        const splashCount = 4;
+        for(let i=0; i<splashCount; i++) {
+            const geometry = new THREE.BufferGeometry();
+            const angle = (Math.PI * 2 / splashCount) * i + Math.random();
+            const r = 0.5 * params.splashSize;
+            
+            const p1 = new THREE.Vector3(x, y, z);
+            const p2 = new THREE.Vector3(
+                x + Math.cos(angle) * r, 
+                y + (Math.random() * 1.0 + 0.5) * params.splashSize,
+                z + Math.sin(angle) * r
+            );
+            
+            const vertices = [p1.x, p1.y, p1.z, p2.x, p2.y, p2.z];
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            
+            const material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            
+            splashes.push({ 
+                mesh: line, life: 1.0, 
+                velocity: new THREE.Vector3(Math.cos(angle)*0.1, 0.2, Math.sin(angle)*0.1) 
+            });
+        }
+    }
+
+    // --- 8. 动画主循环 ---
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        if (params.pause) {
+            renderer.render(scene, camera);
+            return;
+        }
+
+        // --- A. 立方体移动逻辑 ---
+        if (cubeGroup) {
+            if (keys.w) cubeGroup.position.z -= params.moveSpeed;
+            if (keys.s) cubeGroup.position.z += params.moveSpeed;
+            if (keys.a) cubeGroup.position.x -= params.moveSpeed;
+            if (keys.d) cubeGroup.position.x += params.moveSpeed;
+        }
+
+        // --- B. 碰撞检测准备 ---
+        // 获取立方体的边界数据
+        const halfSize = params.cubeSize / 2;
+        const cubeX = cubeGroup.position.x;
+        const cubeZ = cubeGroup.position.z;
+        // 立方体顶面的 Y 高度
+        const cubeTopY = cubeGroup.position.y + halfSize; 
+        
+        // --- C. 雨滴逻辑 ---
+        const positions = rainSystem.geometry.attributes.position.array;
+        
+        for (let i = 0; i < params.rainCount; i++) {
+            const index = i * 6;
+            const speed = params.rainVelocities ? rainVelocities[i] : params.rainSpeed;
+
+            // 当前雨滴坐标
+            let px = positions[index];
+            let py = positions[index + 1];
+            let pz = positions[index + 2];
+
+            // 预测下一帧位置
+            const nextPy = py - speed;
+
+            // 1. 检测是否击中立方体顶部
+            // 简单 AABB 检测：判断 X 和 Z 是否在立方体范围内，且 Y 穿过了顶面
+            const insideX = px > cubeX - halfSize && px < cubeX + halfSize;
+            const insideZ = pz > cubeZ - halfSize && pz < cubeZ + halfSize;
+            
+            let hitCube = false;
+
+            if (insideX && insideZ) {
+                // 如果当前在上方，下一帧在下方（穿透）或刚好接触
+                if (py >= cubeTopY && nextPy <= cubeTopY) {
+                    hitCube = true;
+                    // 在立方体顶面生成效果
+                    createRipple(px, cubeTopY, pz);
+                    createSplash(px, cubeTopY, pz);
+                    // 重置雨滴
+                    resetRainDrop(i); 
+                }
+            }
+
+            // 2. 如果没击中立方体，继续下落或击中地面
+            if (!hitCube) {
+                positions[index + 1] = nextPy;      // 头部 Y
+                positions[index + 4] = nextPy + 2;  // 尾部 Y
+
+                // 检测地面碰撞
+                if (nextPy < groundBaseY) {
+                    createRipple(px, groundBaseY, pz);
+                    createSplash(px, groundBaseY, pz);
+                    resetRainDrop(i);
+                }
+            }
+        }
+        rainSystem.geometry.attributes.position.needsUpdate = true;
+
+        // --- D. 涟漪动画 ---
+        for (let i = ripples.length - 1; i >= 0; i--) {
+            const r = ripples[i];
+            r.life -= 0.02;
+            r.mesh.scale.multiplyScalar(1.05);
+            r.mesh.material.opacity = r.life;
+            if (r.life <= 0) {
+                scene.remove(r.mesh);
+                r.mesh.material.dispose();
+                ripples.splice(i, 1);
+            }
+        }
+
+        // --- E. 水花动画 ---
+        for (let i = splashes.length - 1; i >= 0; i--) {
+            const s = splashes[i];
+            s.life -= 0.05;
+            s.mesh.position.add(s.velocity);
+            s.velocity.y -= 0.015;
+            s.mesh.material.opacity = s.life;
+            if (s.life <= 0) {
+                scene.remove(s.mesh);
+                s.mesh.geometry.dispose();
+                s.mesh.material.dispose();
+                splashes.splice(i, 1);
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+</script>
+</body>
+</html>

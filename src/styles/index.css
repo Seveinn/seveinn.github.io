@@ -1,0 +1,56 @@
+:root {
+  /* Nord 深色主题配色 */
+  --bg-deep: #1a1d24;        /* 更深的背景色 */
+  --bg-color: #1e222a;      /* 主背景 */
+  --card-bg: #2E3440;       /* 卡片底色 */
+  --card-base: #2E3440;     /* 卡片基础色 */
+  --text-main: #ECEFF4;     /* 主文本色（浅色） */
+  --text-sub: #D8DEE9;      /* 次要文本色 */
+  --text-light: #ECEFF4;    /* 浅色文本 */
+  --primary: #88C0D0;       /* 冰霜蓝 */
+  --secondary: #EBCB8B;     /* 奶油黄 */
+  --accent: #BF616A;        /* 柔和红 */
+  --highlight: #A3BE8C;     /* 抹茶绿 */
+  --green: #A3BE8C;         /* 绿色 */
+  --code-bg: #3B4252;      /* 代码块背景 */
+  
+  /* 阴影风格 */
+  --shadow-pop: 0 10px 30px rgba(0,0,0,0.3);
+  --shadow-hover: 0 20px 50px rgba(136, 192, 208, 0.2);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  height: 100%;
+  overflow: hidden;
+  /* 背景网格装饰 */
+  background-image: 
+    linear-gradient(rgba(136, 192, 208, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(136, 192, 208, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+
