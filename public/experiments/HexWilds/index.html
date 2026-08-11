@@ -1,0 +1,209 @@
+<!--
+ * @Author: Seveinn
+ * @Date: 2025-11-21 14:23:28
+ * @LastEditors: Seveinn
+ * @LastEditTime: 2025-11-21 14:30:49
+ * @FilePath: \Gemini3Test\HexWildsModule\index.html
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Hex Survival: Day & Night Update</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    
+    <!-- Layer 1 -->
+    <div class="layer-world">
+        <div id="enemy-hud">
+            <div class="enemy-tag">MUTANT</div>
+            <div class="enemy-hp-bg"><div class="enemy-hp-fill" id="enemy-hp-fill"></div></div>
+        </div>
+        <div id="floating-text-container"></div>
+    </div>
+
+    <!-- Layer 2 -->
+    <div class="layer-hud">
+        <div id="time-display"><span class="time-icon">🌙</span> <span id="time-text">Night</span></div>
+
+        <div id="ui-panel" class="pointer-auto">
+            <h2>
+                <span id="ui-title">SURVIVAL</span>
+                <div class="header-icons">
+                    <div class="icon-btn" onclick="toggleModal('character-settings')" title="Character Settings">👤</div>
+                    <div class="icon-btn" onclick="toggleModal('light-settings')" title="Light Settings">💡</div>
+                    <div class="icon-btn" onclick="toggleModal('game-settings')" title="Game Settings">⚙️</div>
+                </div>
+            </h2>
+            <div class="stat-row"><span class="lang-hp">HP</span><div class="bar-bg"><div id="hp-bar" class="bar-fill" style="width:100%"></div></div></div>
+            <div class="stat-row"><span class="lang-food">FOOD</span><div class="bar-bg"><div id="food-bar" class="bar-fill" style="width:40%"></div></div></div>
+            <div class="stat-row"><span class="lang-ap">AP</span><div id="ap-display">3 / 3</div></div>
+            <div style="margin-top:10px; color:#90a4ae; font-size: 12px;"><span class="lang-turn">TURN</span>: <span id="turn-val" style="color:#ffca28">1</span></div>
+            <div id="log-msg" style="margin-top:10px; color:#b0bec5; font-size: 12px; min-height:16px;">...</div>
+        </div>
+
+        <div id="action-bar" class="pointer-auto">
+            <button class="action-btn active" id="btn-move" onclick="setMode('move')">
+                <div class="btn-icon">👣</div><div class="lang-move">Move</div><div class="cost-badge">1</div>
+            </button>
+            <button class="action-btn" id="btn-attack" onclick="setMode('attack')">
+                <div class="btn-icon">⚔️</div><div class="lang-attack">Attack</div><div class="cost-badge">2</div>
+            </button>
+            <button class="action-btn" id="btn-wait" onclick="doRest()">
+                <div class="btn-icon">💤</div><div class="lang-rest">Rest</div><div class="cost-badge">1</div>
+            </button>
+            <div style="width: 10px;"></div>
+            <button class="action-btn" id="btn-end" onclick="endPlayerTurn()">
+                <div class="btn-icon">🛑</div><div class="lang-end">End</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Layer 3: Modals -->
+    <div class="layer-modal" id="modal-container" style="display:flex;">
+        <!-- Color Scheme Selection (shown before game starts) -->
+        <div id="color-scheme-selection" class="modal-content" style="display:block;">
+            <h3 class="lang-select_scheme" style="margin-top:0; color:#ffca28; text-align:center;">SELECT COLOR SCHEME</h3>
+            <div class="scheme-grid">
+                <div class="scheme-option" data-scheme="classic" onclick="selectColorScheme('classic')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #0f1724 0%, #87ceeb 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="classic">Classic</div>
+                </div>
+                <div class="scheme-option" data-scheme="desert" onclick="selectColorScheme('desert')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #1a0f0a 0%, #f4a460 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="desert">Desert</div>
+                </div>
+                <div class="scheme-option" data-scheme="arctic" onclick="selectColorScheme('arctic')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #0a0f1a 0%, #b0e0e6 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="arctic">Arctic</div>
+                </div>
+            </div>
+            <div class="setting-group" style="margin-top:20px;">
+                <label class="setting-label lang-initial_time">Initial Time</label>
+                <select id="initial-time-selection">
+                    <option value="day" class="lang-initial_time_day">Day</option>
+                    <option value="night" class="lang-initial_time_night">Night</option>
+                </select>
+            </div>
+            <button class="modal-btn lang-start_game" onclick="confirmColorScheme()" style="margin-top:20px;">Start Game</button>
+        </div>
+
+        <!-- Character Settings -->
+        <div id="character-settings" class="modal-content">
+            <h3 class="lang-character_settings" style="margin-top:0; color:#ffca28">CHARACTER SETTINGS</h3>
+            <div class="setting-group"><label class="setting-label lang-color">Character Color</label><input type="color" id="set-char-color" value="#ff8a65"></div>
+            <div class="setting-group">
+                <label class="setting-label lang-move_speed">Move Speed (<span id="val-moveSpeed">15</span>)</label>
+                <input type="range" id="set-moveSpeed" min="5" max="30" step="1" value="15" oninput="updateMoveSpeed(this.value)">
+            </div>
+            <button class="modal-btn lang-apply" onclick="applyCharacterSettings()">Apply</button>
+            <button class="modal-btn lang-close" style="background:#546e7a; margin-top:5px;" onclick="closeModal()">Close</button>
+        </div>
+
+        <!-- Game Settings -->
+        <div id="game-settings" class="modal-content">
+            <h3 class="lang-settings" style="margin-top:0; color:#ffca28">SETTINGS</h3>
+            <div class="setting-group"><label class="setting-label lang-language">Language</label><select id="set-lang"><option value="en">English</option><option value="zh">中文</option></select></div>
+            <div class="setting-group"><label class="setting-label lang-difficulty">Difficulty</label><select id="set-diff"><option value="normal">Normal</option><option value="hardcore">Hardcore</option></select></div>
+            <div class="setting-group">
+                <label class="setting-label lang-color_scheme">Color Scheme</label>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <select id="set-color-scheme" style="flex:1;">
+                        <option value="classic">Classic</option>
+                        <option value="desert">Desert</option>
+                        <option value="arctic">Arctic</option>
+                    </select>
+                    <button class="modal-btn lang-change_scheme" style="background:#546e7a; padding:5px 15px; font-size:12px; margin:0;" onclick="showColorSchemeSelector()">Change</button>
+                </div>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label lang-initial_time">Initial Time</label>
+                <select id="set-initial-time">
+                    <option value="day" class="lang-initial_time_day">Day</option>
+                    <option value="night" class="lang-initial_time_night">Night</option>
+                </select>
+            </div>
+            <button class="modal-btn lang-apply" onclick="applyGameSettings()">Apply & Restart</button>
+            <button class="modal-btn lang-close" style="background:#546e7a; margin-top:5px;" onclick="closeModal()">Close</button>
+        </div>
+
+        <!-- Color Scheme Selector (for game settings) -->
+        <div id="color-scheme-selector" class="modal-content" style="display:none;">
+            <h3 class="lang-select_scheme" style="margin-top:0; color:#ffca28; text-align:center;">SELECT COLOR SCHEME</h3>
+            <div class="scheme-grid">
+                <div class="scheme-option" data-scheme="classic" onclick="selectColorSchemeInSettings('classic')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #0f1724 0%, #87ceeb 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="classic">Classic</div>
+                </div>
+                <div class="scheme-option" data-scheme="desert" onclick="selectColorSchemeInSettings('desert')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #1a0f0a 0%, #f4a460 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="desert">Desert</div>
+                </div>
+                <div class="scheme-option" data-scheme="arctic" onclick="selectColorSchemeInSettings('arctic')">
+                    <div class="scheme-preview" style="background: linear-gradient(135deg, #0a0f1a 0%, #b0e0e6 100%);"></div>
+                    <div class="scheme-name" data-scheme-name="arctic">Arctic</div>
+                </div>
+            </div>
+            <button class="modal-btn lang-apply" onclick="confirmColorSchemeInSettings()" style="margin-top:20px;">Apply & Restart</button>
+            <button class="modal-btn lang-close" style="background:#546e7a; margin-top:5px;" onclick="closeColorSchemeSelector()">Close</button>
+        </div>
+
+        <!-- Light Settings -->
+        <div id="light-settings" class="modal-content">
+            <h3 style="margin-top:0; color:#00e5ff">LIGHT CONTROL</h3>
+            
+            <span class="setting-sub" style="color:#ffca28; margin-top:10px; border-bottom:1px solid #546e7a; padding-bottom:2px;">DAY SETTINGS</span>
+            <div class="setting-group">
+                <label class="setting-label">Day Ambient (<span id="val-dayAmbient">0.9</span>)</label>
+                <input type="range" min="0" max="1.5" step="0.1" value="0.9" oninput="updateLightParam('dayAmbient', this.value)">
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Day Sun (<span id="val-dayDir">1.0</span>)</label>
+                <input type="range" min="0" max="2.0" step="0.1" value="1.0" oninput="updateLightParam('dayDir', this.value)">
+            </div>
+
+            <span class="setting-sub" style="color:#7986cb; margin-top:10px; border-bottom:1px solid #546e7a; padding-bottom:2px;">NIGHT SETTINGS</span>
+            <div class="setting-group">
+                <label class="setting-label">Night Ambient (<span id="val-nightAmbient">0.2</span>)</label>
+                <input type="range" min="0" max="1" step="0.05" value="0.2" oninput="updateLightParam('nightAmbient', this.value)">
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Plant Light Radius (<span id="val-radius">5</span>)</label>
+                <input type="range" min="1" max="15" step="0.5" value="5" oninput="updateLightParam('radius', this.value)">
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Plant Light Color</label>
+                <input type="color" value="#00e5ff" oninput="updateLightParam('color', this.value)">
+            </div>
+            <button class="modal-btn lang-close" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <div id="turn-indicator">ENEMY TURN</div>
+    <div id="loading-screen"><div class="loading-text" style="color:white; font-size:20px;">LOADING...</div></div>
+    
+    <div id="game-over">
+        <h1 style="color:#ef5350; font-size: 40px; margin-bottom:10px" class="lang-died">YOU DIED</h1>
+        <p id="death-reason" style="color:#b0bec5; font-size: 18px;">--</p>
+        <button class="restart-btn lang-restart" onclick="location.reload()">TRY AGAIN</button>
+    </div>
+
+    <!-- Layer 4 -->
+    <div id="cursor-layer">
+        <div id="attack-cursor"><span id="attack-icon">⚔️</span></div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+    </script>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
+

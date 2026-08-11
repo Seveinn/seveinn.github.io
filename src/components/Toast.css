@@ -1,0 +1,132 @@
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.toast-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: rgba(46, 52, 64, 0.95);
+  backdrop-filter: blur(20px);
+  border: 2px solid rgba(136, 192, 208, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  min-width: 300px;
+  max-width: 400px;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translateX(400px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.toast-item.toast-enter {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast-item.toast-leave {
+  transform: translateX(400px);
+  opacity: 0;
+}
+
+.toast-success {
+  border-color: rgba(163, 190, 140, 0.5);
+  background: rgba(46, 52, 64, 0.95);
+}
+
+.toast-error {
+  border-color: rgba(191, 97, 106, 0.5);
+  background: rgba(46, 52, 64, 0.95);
+}
+
+.toast-warning {
+  border-color: rgba(235, 203, 139, 0.5);
+  background: rgba(46, 52, 64, 0.95);
+}
+
+.toast-info {
+  border-color: rgba(136, 192, 208, 0.5);
+  background: rgba(46, 52, 64, 0.95);
+}
+
+.toast-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  color: var(--text-light);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  font-family: 'Quicksand', sans-serif;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--text-sub);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  background: rgba(136, 192, 208, 0.2);
+  color: var(--text-light);
+}
+
+.toast-item:hover {
+  border-color: var(--primary);
+  transform: translateX(-4px);
+  box-shadow: 0 15px 40px rgba(136, 192, 208, 0.2);
+}
+
+.toast-item.toast-leave:hover {
+  transform: translateX(400px);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .toast-item {
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .toast-item.toast-enter {
+    transform: translateY(0);
+  }
+
+  .toast-item {
+    transform: translateY(-100px);
+  }
+
+  .toast-item.toast-leave {
+    transform: translateY(-100px);
+  }
+}
+

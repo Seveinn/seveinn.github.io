@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物理绳索木牌 - Verlet 物理模拟实验</title>
+    <meta name="description" content="一个基于 Verlet 积分的物理模拟实验，展示绳索悬挂的木牌物理交互效果，支持鼠标拖拽和风力模拟，具有真实的物理摆动和碰撞效果。" />
+    <meta name="keywords" content="物理模拟,Verlet积分,Canvas,交互实验,绳索物理,木牌摆动" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0d0d0d; /* 极接近黑色的深灰，更有质感 */
+            color: #888;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Drag the sign · 拖拽木牌互动</div>
+    <canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height;
+
+    // --- 物理配置 ---
+    const CONFIG = {
+        gravity: 0.5,
+        friction: 0.98,      // 阻尼，越小停得越快
+        stiffness: 1.0,      // 约束硬度 (0-1)
+        windStrength: 0.04,  // 基础风力
+        ropeSegments: 12,    // 绳索节数
+        ropeLength: 15,      // 每节绳索长度
+        signWidth: 160,
+        signHeight: 100
+    };
+
+    // --- 核心类 ---
+
+    class Point {
+        constructor(x, y, pinned = false, mass = 1) {
+            this.x = x;
+            this.y = y;
+            this.oldx = x; // 上一帧位置
+            this.oldy = y;
+            this.pinned = pinned;
+            this.mass = mass; // 质量影响重力加速度效果(在这个简化模型中主要通过外力体现)
+        }
+
+        update() {
+            if (this.pinned) return;
+
+            // Verlet 积分计算速度
+            const vx = (this.x - this.oldx) * CONFIG.friction;
+            const vy = (this.y - this.oldy) * CONFIG.friction;
+
+            this.oldx = this.x;
+            this.oldy = this.y;
+
+            // 施加重力
+            this.y += CONFIG.gravity * this.mass;
+
+            // 施加风力/噪点抖动
+            // 使用正弦波叠加产生伪随机的风场
+            const time = Date.now() * 0.0015;
+            // 越靠下的点，摆动幅度略大
+            const noise = Math.sin(time + this.y * 0.01) + Math.sin(time * 0.5 + this.x * 0.02); 
+            const windForce = noise * CONFIG.windStrength;
+
+            this.x += vx + windForce;
+            this.y += vy;
+        }
+
+        setPos(x, y) {
+            this.x = this.oldx = x;
+            this.y = this.oldy = y;
+        }
+    }
+
+    class Stick {
+        constructor(p1, p2, visible = true, lineWidth = 1) {
+            this.p1 = p1;
+            this.p2 = p2;
+            this.length = this.getDist(p1, p2);
+            this.visible = visible;
+            this.lineWidth = lineWidth;
+        }
+
+        getDist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        update() {
+            const dx = this.p2.x - this.p1.x;
+            const dy = this.p2.y - this.p1.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist === 0) return;
+
+            // 弹性计算：拉伸或压缩的差值
+            const diff = (this.length - dist) / dist * CONFIG.stiffness;
+            const offset = diff * 0.5;
+
+            // 简单的质量平衡（这里简化为均匀分配，除非一点固定）
+            const px = dx * offset;
+            const py = dy * offset;
+
+            if (!this.p1.pinned) {
+                this.p1.x -= px;
+                this.p1.y -= py;
+            }
+            if (!this.p2.pinned) {
+                this.p2.x += px;
+                this.p2.y += py;
+            }
+        }
+
+        draw() {
+            if (!this.visible) return;
+            ctx.beginPath();
+            ctx.moveTo(this.p1.x, this.p1.y);
+            ctx.lineTo(this.p2.x, this.p2.y);
+            ctx.strokeStyle = '#eee'; // 略带灰度的白
+            ctx.lineWidth = this.lineWidth;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+        }
+    }
+
+    // --- 场景构建 ---
+
+    const points = [];
+    const sticks = [];
+    let dragPoint = null;
+
+    function init() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+
+        points.length = 0;
+        sticks.length = 0;
+
+        const startX = width / 2;
+        const startY = 50;
+
+        // 1. 创建绳索
+        let prevPoint = null;
+        for (let i = 0; i < CONFIG.ropeSegments; i++) {
+            const p = new Point(startX, startY + i * CONFIG.ropeLength, i === 0);
+            points.push(p);
+            if (prevPoint) {
+                sticks.push(new Stick(prevPoint, p, true, 1)); // 绳索线条较细
+            }
+            prevPoint = p;
+        }
+
+        // 绳索的最末端点，即木牌的【顶部中心点】
+        const anchor = prevPoint; 
+        anchor.mass = 2; // 增加连接点的惯性
+
+        // 2. 创建木牌
+        // 结构：Anchor(中) -> TL(左上), TR(右上), BL(左下), BR(右下)
+        
+        const hw = CONFIG.signWidth / 2;
+        const h = CONFIG.signHeight;
+        
+        // 初始位置生成
+        const pTL = new Point(anchor.x - hw, anchor.y);
+        const pTR = new Point(anchor.x + hw, anchor.y);
+        const pBL = new Point(anchor.x - hw, anchor.y + h);
+        const pBR = new Point(anchor.x + hw, anchor.y + h);
+
+        // 增加下半部分的质量，模拟重力垂坠感
+        pBL.mass = 3;
+        pBR.mass = 3;
+
+        points.push(pTL, pTR, pBL, pBR);
+
+        // --- 连接约束 (Sticks) ---
+
+        // A. 顶部连接 (可视)
+        // 从绳索末端连向左上角和右上角，形成木牌的顶边
+        sticks.push(new Stick(anchor, pTL, true, 2.5));
+        sticks.push(new Stick(anchor, pTR, true, 2.5));
+
+        // B. 木牌轮廓 (可视)
+        sticks.push(new Stick(pTL, pBL, true, 2.5)); // 左
+        sticks.push(new Stick(pBL, pBR, true, 2.5)); // 底
+        sticks.push(new Stick(pBR, pTR, true, 2.5)); // 右
+
+        // C. 刚性支撑 (不可视) - 关键！
+        // 如果没有这些，木牌会像一滩软泥一样变形，或者绕着中心点乱转
+        
+        // 1. 内部交叉支撑 (保持矩形形状)
+        sticks.push(new Stick(pTL, pBR, false));
+        sticks.push(new Stick(pTR, pBL, false));
+
+        // 2. 中心锚点支撑 (防止木牌像螺旋桨一样绕着绳子转)
+        // 将中心点与底部两角连接，形成坚固的三角形结构
+        sticks.push(new Stick(anchor, pBL, false)); 
+        sticks.push(new Stick(anchor, pBR, false));
+    }
+
+    function update() {
+        // 更新点
+        for (const p of points) {
+            p.update();
+        }
+
+        // 求解约束 (迭代多次以保证刚体不拉伸)
+        const iterations = 5;
+        for (let i = 0; i < iterations; i++) {
+            for (const s of sticks) {
+                s.update();
+            }
+            // 鼠标拖拽约束保持
+            if (dragPoint) {
+                dragPoint.setPos(mouse.x, mouse.y);
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        // 绘制所有杆件
+        for (const s of sticks) {
+            s.draw();
+        }
+
+        // 可选：绘制连接处的节点，增加一点机械感
+        const anchor = points[CONFIG.ropeSegments - 1];
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(anchor.x, anchor.y, 3, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // --- 交互处理 ---
+
+    const mouse = { x: 0, y: 0 };
+
+    window.addEventListener('resize', init);
+
+    // 统一处理鼠标和触摸
+    function handleStart(x, y) {
+        mouse.x = x;
+        mouse.y = y;
+        
+        // 寻找最近的点
+        let minInfo = { dist: 100, point: null };
+        for (const p of points) {
+            if (p.pinned) continue;
+            const dx = p.x - x;
+            const dy = p.y - y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < minInfo.dist) {
+                minInfo.dist = dist;
+                minInfo.point = p;
+            }
+        }
+        dragPoint = minInfo.point;
+    }
+
+    window.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+    window.addEventListener('mouseup', () => dragPoint = null);
+
+    window.addEventListener('touchstart', e => {
+        handleStart(e.touches[0].clientX, e.touches[0].clientY);
+        e.preventDefault(); // 防止滚动
+    }, {passive: false});
+    
+    window.addEventListener('touchmove', e => {
+        if(dragPoint) {
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+        }
+        e.preventDefault();
+    }, {passive: false});
+    
+    window.addEventListener('touchend', () => dragPoint = null);
+
+    // 启动
+    init();
+    loop();
+
+</script>
+</body>
+</html>

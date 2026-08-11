@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimalist Vine - Single Stem</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020202; /* 纯净黑 */
+            font-family: 'Segoe UI', sans-serif;
+            color: #eee;
+        }
+        canvas { display: block; }
+        
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 240px;
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            user-select: none;
+            z-index: 10;
+        }
+        
+        .title { font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 8px;}
+        .hint { font-size: 11px; color: #666; line-height: 1.5; }
+
+        button {
+            width: 100%; padding: 10px;
+            background: linear-gradient(135deg, #333, #222);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ccc; cursor: pointer; border-radius: 4px; font-size: 12px;
+            transition: all 0.2s;
+        }
+        button:hover { background: linear-gradient(135deg, #444, #333); color: #fff; border-color: #555; }
+        button:active { transform: translateY(1px); }
+        
+        .btn-group { display: flex; gap: 8px; }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .control-label {
+            font-size: 11px;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .control-label span {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <div class="title">独干藤蔓生成器</div>
+        <div class="btn-group">
+            <button id="btn-random">🎲 突变</button>
+            <button id="btn-replant">🌱 重生</button>
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                主干粗细: <span id="thickness-value">0.08</span>
+            </div>
+            <input type="range" id="thickness-slider" min="0.02" max="0.15" step="0.01" value="0.08">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                生长速度: <span id="speed-value">0.15</span>
+            </div>
+            <input type="range" id="speed-slider" min="0.05" max="0.5" step="0.01" value="0.15">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                次级藤蔓数: <span id="branches-value">3</span>
+            </div>
+            <input type="range" id="branches-slider" min="0" max="10" step="1" value="3">
+        </div>
+        <div class="control-group">
+            <div class="control-label">
+                最大生长距离: <span id="maxlength-value">100</span>
+            </div>
+            <input type="range" id="maxlength-slider" min="20" max="200" step="5" value="100">
+        </div>
+        <div class="hint">
+            • <strong>主干 (Main Stem)</strong>: 永远清晰，蜿蜒向上。<br>
+            • <strong>次级枝 (Side Shoots)</strong>: 随机节点生成，带有随机景深(模糊)效果。<br>
+            • 点击屏幕任意位置也可重种。
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+<script>
+/**
+ * Minimalist Vine: Single Stem Logic
+ */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+let rootSegment = null; // 链表头
+let allSegments = [];   // 扁平数组用于渲染循环
+let seed = null;
+let time = 0;
+let stage = 'SEED'; 
+
+// --- 核心配置 ---
+const config = {
+    mainStemLength: 80,    // 主干节数 (决定高度)
+    segmentLength: 12,     // 单节长度
+    growSpeed: 0.15,       // 生长速度
+    mainStemThickness: 0.08, // 主干粗细系数
+    maxTotalLength: 100,    // 最大生长距离（从根节点到末端的节数）
+    maxSideBranches: 3,     // 最大次级藤蔓数量
+    
+    // 分枝参数
+    sideBranchChance: 0.25, // 每一节长出侧枝的概率
+    sideBranchLife: 12,     // 侧枝最大节数 (短)
+    
+    // 物理参数
+    curlFrequency: 0.1,    // 弯曲频率
+    curlAmplitude: 0.2,    // 弯曲幅度
+    swaySpeed: 0.002,      // 风吹速度
+    maxAngleChange: 0.3,   // 最大角度变化（弧度），避免过大弯折
+    angleHistoryDepth: 5,  // 检查前N个节点的角度历史
+};
+
+// 边界设置
+const boundary = {
+    margin: 50,      // 边界边距
+    buffer: 30,      // 提前转向缓冲距离
+    minX: 0,
+    minY: 0,
+    maxX: 0,
+    maxY: 0
+};
+
+// 全局状态
+let sideBranchCount = 0;  // 当前已生成的侧枝数量
+
+// 基因 (叶子和花朵样式)
+let gene = {
+    leafSize: 10,
+    leafWidth: 0.6,
+    flowerSize: 3
+};
+
+// 深度透明度表：0(主干) -> 1(近侧枝) -> 2(中侧枝) -> 3(远侧枝)
+const depthOpacity = [1.0, 0.7, 0.4, 0.15];
+
+// --- 工具函数 ---
+const randomRange = (min, max) => Math.random() * (max - min) + min;
+
+function randomizeGenes() {
+    gene = {
+        leafSize: randomRange(8, 15),
+        leafWidth: randomRange(0.4, 0.8),
+        flowerSize: randomRange(2, 5)
+    };
+    // 随机微调主干弯曲度
+    config.curlFrequency = randomRange(0.05, 0.2);
+    config.curlAmplitude = randomRange(0.1, 0.3);
+}
+
+// --- 视觉元素类 ---
+
+class Seed {
+    constructor(x, y) {
+        this.x = x; this.y = 0; this.targetY = y;
+        this.vy = 12; this.landed = false; this.alpha = 1;
+    }
+    update() {
+        if (!this.landed) {
+            this.y += this.vy;
+            if (this.y >= this.targetY) {
+                this.y = this.targetY; this.landed = true;
+                startGrowth(this.x, this.y);
+            }
+        } else { this.alpha -= 0.1; }
+    }
+    draw(ctx) {
+        if (this.alpha <= 0) return;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = "#fff";
+        ctx.shadowBlur = 10; ctx.shadowColor = "#fff";
+        ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+class Leaf {
+    constructor(x, y, angle, depth) {
+        this.x = x; this.y = y; this.angle = angle; this.depth = depth;
+        this.targetSize = gene.leafSize * randomRange(0.8, 1.2);
+        this.size = 0;
+    }
+    update(pos) {
+        this.x = pos.x; this.y = pos.y;
+        if (this.size < this.targetSize) this.size += (this.targetSize - this.size) * 0.1;
+    }
+    draw(ctx) {
+        if (this.size < 0.5) return;
+        ctx.save();
+        ctx.globalAlpha = depthOpacity[this.depth] || 0.1;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 0.5;
+        const l = this.size; const w = l * gene.leafWidth;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.bezierCurveTo(l/2, -w, l, 0, l, 0);
+        ctx.bezierCurveTo(l/2, w, 0, 0, 0, 0);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Flower {
+    constructor(x, y, angle, depth) {
+        this.x = x; this.y = y; this.angle = angle; this.depth = depth;
+        this.targetSize = gene.flowerSize; this.size = 0;
+        this.petals = Math.floor(randomRange(5, 7));
+    }
+    update(pos) {
+        this.x = pos.x; this.y = pos.y;
+        if (this.size < this.targetSize) this.size += (this.targetSize - this.size) * 0.05;
+    }
+    draw(ctx) {
+        if (this.size < 0.1) return;
+        ctx.save();
+        ctx.globalAlpha = depthOpacity[this.depth] || 0.1;
+        ctx.translate(this.x, this.y);
+        ctx.scale(this.size, this.size);
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2); ctx.fill(); // 花蕊
+        for(let i=0; i<this.petals; i++) {
+            ctx.rotate(Math.PI*2/this.petals);
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(3,0); ctx.stroke(); // 极简花瓣
+        }
+        ctx.restore();
+    }
+}
+
+// --- 藤蔓节段 ---
+
+class VineSegment {
+    constructor(x, y, angle, index, depth, isMainStem, totalLength = 0, parent = null) {
+        this.x = x; this.y = y; 
+        this.angle = angle; this.baseAngle = angle;
+        
+        this.index = index;         // 当前是第几节
+        this.depth = depth;         // 深度 (0=主干)
+        this.isMainStem = isMainStem;
+        this.totalLength = totalLength; // 从根节点到当前节点的总节数
+        this.parent = parent;       // 父节点引用，用于回溯角度历史
+
+        // 决定最大寿命
+        this.maxIndex = isMainStem ? config.mainStemLength : (index + config.sideBranchLife);
+        
+        this.length = config.segmentLength * randomRange(0.9, 1.1);
+        this.currentLength = 0;
+        this.grown = false; // 是否长完并生成下一节
+
+        // 视觉粗细
+        this.thickness = isMainStem 
+            ? Math.max(0.5, (config.mainStemLength - index) * config.mainStemThickness)  // 主干渐细
+            : 0.5; // 侧枝很细
+
+        this.endX = x; this.endY = y;
+        this.child = null;      // 链表下一个节点 (线性生长)
+        this.sideChild = null;  // 侧枝节点
+        
+        this.leaf = null;
+        this.flower = null;
+        
+        // 摆动相位
+        this.noiseOffset = Math.random() * 100;
+    }
+
+    update() {
+        // 1. 伸长动画
+        if (this.currentLength < this.length) {
+            this.currentLength += (this.length - this.currentLength) * config.growSpeed + 0.1;
+        } else if (!this.grown) {
+            this.grown = true;
+            this.spawn(); // 生长完成，生成下一节
+        }
+
+        // 2. 角度计算 (S型游走 + 风吹)
+        // 主干有很强的方向性弯曲，侧枝比较直
+        let curl = 0;
+        if (this.isMainStem) {
+            curl = Math.sin(this.index * config.curlFrequency) * config.curlAmplitude;
+        }
+        
+        let sway = Math.sin(time * config.swaySpeed + this.noiseOffset + this.index*0.1) * 0.05;
+        this.angle = this.baseAngle + curl + sway;
+
+        // 3. 计算末端
+        this.endX = this.x + Math.cos(this.angle) * this.currentLength;
+        this.endY = this.y + Math.sin(this.angle) * this.currentLength;
+        
+        // 4. 边界检测和调整（提前转向）- 使用缓冲距离
+        let angleAdjustmentX = 0;
+        let angleAdjustmentY = 0;
+        
+        // 计算到实际边界的距离
+        const distToLeft = this.endX - boundary.minX;
+        const distToRight = boundary.maxX - this.endX;
+        const distToTop = this.endY - boundary.minY;
+        const distToBottom = boundary.maxY - this.endY;
+        
+        // 如果接近左边界（在缓冲区内），提前向右偏转（使用平滑的渐变）
+        if (distToLeft < boundary.buffer && distToLeft > 0) {
+            const factor = 1 - (distToLeft / boundary.buffer); // 0到1的渐变，越近越大
+            angleAdjustmentX = 0.3 * factor; // 向右偏转，越近偏转越大
+        } else if (this.endX <= boundary.minX) {
+            angleAdjustmentX = 0.3; // 已经越界，强制向右偏转
+        }
+        
+        // 如果接近右边界，提前向左偏转
+        if (distToRight < boundary.buffer && distToRight > 0) {
+            const factor = 1 - (distToRight / boundary.buffer);
+            angleAdjustmentX = -0.3 * factor; // 向左偏转
+        } else if (this.endX >= boundary.maxX) {
+            angleAdjustmentX = -0.3; // 已经越界，强制向左偏转
+        }
+        
+        // 如果接近上边界，提前向下偏转
+        if (distToTop < boundary.buffer && distToTop > 0) {
+            const factor = 1 - (distToTop / boundary.buffer);
+            angleAdjustmentY = 0.3 * factor; // 向下偏转
+        } else if (this.endY <= boundary.minY) {
+            angleAdjustmentY = 0.3; // 已经越界，强制向下偏转
+        }
+        
+        // 如果接近下边界，提前向上偏转
+        if (distToBottom < boundary.buffer && distToBottom > 0) {
+            const factor = 1 - (distToBottom / boundary.buffer);
+            angleAdjustmentY = -0.3 * factor; // 向上偏转
+        } else if (this.endY >= boundary.maxY) {
+            angleAdjustmentY = -0.3; // 已经越界，强制向上偏转
+        }
+        
+        // 应用角度调整
+        if (angleAdjustmentX !== 0 || angleAdjustmentY !== 0) {
+            let adjustedAngle = this.angle + angleAdjustmentX + angleAdjustmentY;
+            // 应用角度约束，避免边界调整时产生过大弯折
+            adjustedAngle = this.constrainAngle(adjustedAngle);
+            this.angle = adjustedAngle;
+            // 重新计算末端位置
+            this.endX = this.x + Math.cos(this.angle) * this.currentLength;
+            this.endY = this.y + Math.sin(this.angle) * this.currentLength;
+            // 限制在边界内
+            this.endX = Math.max(boundary.minX, Math.min(boundary.maxX, this.endX));
+            this.endY = Math.max(boundary.minY, Math.min(boundary.maxY, this.endY));
+        }
+
+        // 5. 更新子节点
+        if (this.child) { this.child.x = this.endX; this.child.y = this.endY; this.child.update(); }
+        if (this.sideChild) { this.sideChild.x = this.endX; this.sideChild.y = this.endY; this.sideChild.update(); }
+        
+        if (this.leaf) this.leaf.update({x: this.endX, y: this.endY});
+        if (this.flower) this.flower.update({x: this.endX, y: this.endY});
+    }
+
+    // 获取前N个节点的角度历史
+    getAngleHistory(depth) {
+        const history = [];
+        let current = this;
+        let count = 0;
+        
+        while (current && count < depth) {
+            history.push(current.angle);
+            // 通过parent向上回溯
+            current = current.parent;
+            count++;
+        }
+        
+        return history;
+    }
+
+    // 计算角度差值的绝对值（处理角度环绕问题）
+    angleDifference(angle1, angle2) {
+        let diff = angle1 - angle2;
+        // 将差值归一化到 [-π, π] 范围
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        return Math.abs(diff);
+    }
+
+    // 约束角度变化，避免过大弯折
+    constrainAngle(newAngle) {
+        const history = this.getAngleHistory(config.angleHistoryDepth);
+        
+        if (history.length === 0) {
+            return newAngle; // 没有历史，直接返回
+        }
+        
+        // 检查与历史角度的最大差值
+        let maxDiff = 0;
+        for (let i = 0; i < history.length; i++) {
+            const diff = this.angleDifference(newAngle, history[i]);
+            maxDiff = Math.max(maxDiff, diff);
+        }
+        
+        // 如果超过最大允许变化，则限制角度
+        if (maxDiff > config.maxAngleChange) {
+            // 计算允许的角度范围（基于当前角度）
+            const allowedChange = config.maxAngleChange;
+            const currentAngle = this.angle;
+            
+            // 计算新角度与当前角度的差值
+            let angleDiff = newAngle - currentAngle;
+            // 归一化到 [-π, π]
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            
+            // 如果差值超过允许范围，限制它
+            if (Math.abs(angleDiff) > allowedChange) {
+                angleDiff = Math.sign(angleDiff) * allowedChange;
+            }
+            
+            return currentAngle + angleDiff;
+        }
+        
+        return newAngle;
+    }
+
+    spawn() {
+        // 检查是否超过最大生长距离
+        if (this.totalLength >= config.maxTotalLength) {
+            if (Math.random() < 0.5) this.flower = new Flower(this.endX, this.endY, this.angle, this.depth);
+            return;
+        }
+        
+        // 如果达到最大长度，停止生长，可能生成顶花
+        if (this.index >= this.maxIndex) {
+            if (Math.random() < 0.5) this.flower = new Flower(this.endX, this.endY, this.angle, this.depth);
+            return;
+        }
+
+        // A. 延续生长 (主线或侧枝的延伸)
+        // 角度微调，保持连续性
+        let nextAngle = this.angle + randomRange(-0.1, 0.1);
+        // 应用角度约束，避免过大弯折
+        nextAngle = this.constrainAngle(nextAngle);
+        this.child = new VineSegment(this.endX, this.endY, nextAngle, this.index + 1, this.depth, this.isMainStem, this.totalLength + 1, this);
+        
+        // 偶发生成叶子
+        if (Math.random() < 0.6) {
+            let dir = (this.index % 2 === 0) ? 1 : -1;
+            this.leaf = new Leaf(this.endX, this.endY, this.angle + dir * 1.0, this.depth);
+        }
+
+        // B. 主干产生侧枝 (仅主干有此权限，且未达到最大侧枝数)
+        if (this.isMainStem && sideBranchCount < config.maxSideBranches && Math.random() < config.sideBranchChance) {
+            let dir = (Math.random() > 0.5 ? 1 : -1);
+            let sideAngle = this.angle + dir * randomRange(0.5, 1.2); // 侧枝角度较大
+            // 侧枝也需要应用角度约束（相对于父节点）
+            sideAngle = this.constrainAngle(sideAngle);
+            
+            // 侧枝分配随机深度 (1-3)
+            let sideDepth = Math.floor(randomRange(1, 4));
+            
+            // 生成侧枝根节点
+            // 注意：侧枝的 isMainStem = false，总长度从当前节点开始计算
+            this.sideChild = new VineSegment(this.endX, this.endY, sideAngle, this.index, sideDepth, false, this.totalLength + 1, this);
+            sideBranchCount++; // 增加侧枝计数
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        
+        const alpha = depthOpacity[this.depth] || 0.1;
+        ctx.globalAlpha = alpha;
+
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        // 贝塞尔平滑
+        let cx = (this.x + this.endX)/2;
+        let cy = (this.y + this.endY)/2;
+        ctx.quadraticCurveTo(cx, cy, this.endX, this.endY);
+        
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = this.thickness;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        
+        ctx.restore();
+
+        // 递归绘制
+        if (this.leaf) this.leaf.draw(ctx);
+        if (this.flower) this.flower.draw(ctx);
+        
+        if (this.child) this.child.draw(ctx);
+        if (this.sideChild) this.sideChild.draw(ctx);
+    }
+}
+
+// --- 系统逻辑 ---
+
+function init() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    updateBoundary();
+    randomizeGenes();
+    reset();
+    animate();
+}
+
+function updateBoundary() {
+    boundary.minX = boundary.margin;
+    boundary.minY = boundary.margin;
+    boundary.maxX = width - boundary.margin;
+    boundary.maxY = height - boundary.margin;
+}
+
+function reset() {
+    rootSegment = null;
+    time = 0;
+    sideBranchCount = 0; // 重置侧枝计数
+    seed = new Seed(width/2, height - 20);
+    stage = 'SEED';
+}
+
+function startGrowth(x, y) {
+    stage = 'GROW';
+    sideBranchCount = 0; // 重置侧枝计数
+    // 创建唯一的根节点：深度0，是主干，总长度为0，无父节点
+    rootSegment = new VineSegment(x, y, -Math.PI/2, 0, 0, true, 0, null);
+}
+
+function animate() {
+    // 黑色背景
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#020202';
+    ctx.fillRect(0, 0, width, height);
+    time++;
+
+    // 绘制边界框
+    ctx.strokeStyle = '#00aaff';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(boundary.minX, boundary.minY, boundary.maxX - boundary.minX, boundary.maxY - boundary.minY);
+    ctx.setLineDash([]);
+
+    if (seed) { seed.update(); seed.draw(ctx); }
+
+    if (stage === 'GROW' && rootSegment) {
+        rootSegment.update();
+        rootSegment.draw(ctx);
+    }
+    requestAnimationFrame(animate);
+}
+
+// 交互
+document.getElementById('btn-random').onclick = () => { randomizeGenes(); reset(); };
+document.getElementById('btn-replant').onclick = reset;
+window.addEventListener('mousedown', reset); // 点击重种
+window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    updateBoundary();
+});
+
+// UI控制
+const thicknessSlider = document.getElementById('thickness-slider');
+const thicknessValue = document.getElementById('thickness-value');
+const speedSlider = document.getElementById('speed-slider');
+const speedValue = document.getElementById('speed-value');
+const branchesSlider = document.getElementById('branches-slider');
+const branchesValue = document.getElementById('branches-value');
+const maxlengthSlider = document.getElementById('maxlength-slider');
+const maxlengthValue = document.getElementById('maxlength-value');
+
+thicknessSlider.addEventListener('input', (e) => {
+    config.mainStemThickness = parseFloat(e.target.value);
+    thicknessValue.textContent = config.mainStemThickness.toFixed(2);
+});
+
+speedSlider.addEventListener('input', (e) => {
+    config.growSpeed = parseFloat(e.target.value);
+    speedValue.textContent = config.growSpeed.toFixed(2);
+});
+
+branchesSlider.addEventListener('input', (e) => {
+    config.maxSideBranches = parseInt(e.target.value);
+    branchesValue.textContent = config.maxSideBranches;
+});
+
+maxlengthSlider.addEventListener('input', (e) => {
+    config.maxTotalLength = parseInt(e.target.value);
+    maxlengthValue.textContent = config.maxTotalLength;
+});
+
+init();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+body { 
+    margin: 0; 
+    overflow: hidden; 
+    background-color: #1a1a2e; 
+    font-family: 'Segoe UI', sans-serif; 
+    user-select: none; 
+    transition: background-color 2s;
+}
+
+/* 层级系统 */
+#canvas-container { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    z-index: 0; 
+}
+.layer-world { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: none; 
+    z-index: 50; 
+}
+.layer-hud { 
+    position: absolute; 
+    pointer-events: none; 
+    width: 100%; 
+    height: 100%; 
+    top: 0; 
+    left: 0; 
+    z-index: 100; 
+}
+.pointer-auto { 
+    pointer-events: auto; 
+}
+.layer-modal { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: none; 
+    z-index: 400; /* 确保在加载屏幕之上 */
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+}
+
+/* UI 元素 */
+#enemy-hud { 
+    position: absolute; 
+    width: 60px; 
+    pointer-events: none; 
+    display: none; 
+    opacity: 0.9; 
+    transition: opacity 0.3s; 
+}
+.enemy-hp-bg { 
+    width: 100%; 
+    height: 6px; 
+    background: #000; 
+    border: 1px solid #fff; 
+    border-radius: 2px; 
+}
+.enemy-hp-fill { 
+    width: 100%; 
+    height: 100%; 
+    background: #d32f2f; 
+    transition: width 0.2s; 
+}
+.enemy-tag { 
+    text-align: center; 
+    font-size: 10px; 
+    color: #ff5252; 
+    font-weight: bold; 
+    text-shadow: 1px 1px 0 #000; 
+    margin-bottom: 2px; 
+}
+
+.floating-text { 
+    position: absolute; 
+    font-weight: bold; 
+    font-size: 20px; 
+    text-shadow: 1px 1px 0 #000; 
+    animation: floatUp 1.5s forwards; 
+}
+@keyframes floatUp { 
+    0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; } 
+    20% { transform: translate(-50%, -30px) scale(1.2); opacity: 1; } 
+    100% { transform: translate(-50%, -80px) scale(1); opacity: 0; } 
+}
+
+#ui-panel {
+    position: absolute; 
+    top: 20px; 
+    left: 20px; 
+    width: 280px;
+    background: rgba(20, 30, 35, 0.98); 
+    color: #eceff1; 
+    padding: 20px;
+    border-radius: 8px; 
+    border: 1px solid #37474f;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+}
+h2 { 
+    margin: 0 0 15px 0; 
+    font-size: 20px; 
+    color: #ffca28; 
+    border-bottom: 2px solid #37474f; 
+    padding-bottom: 8px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+}
+.stat-row { 
+    display: flex; 
+    justify-content: space-between; 
+    margin-bottom: 12px; 
+    font-size: 14px; 
+    font-weight: 600; 
+}
+.bar-bg { 
+    width: 55%; 
+    height: 8px; 
+    background: #37474f; 
+    overflow: hidden; 
+    border-radius: 4px;
+}
+.bar-fill { 
+    height: 100%; 
+    transition: width 0.3s ease-out; 
+}
+#hp-bar { 
+    background: #e53935; 
+}
+#food-bar { 
+    background: #ffca28; 
+}
+
+.header-icons { 
+    display: flex; 
+    gap: 10px; 
+}
+.icon-btn { 
+    cursor: pointer; 
+    transition: transform 0.3s; 
+    font-size: 18px; 
+    color: #90a4ae; 
+}
+.icon-btn:hover { 
+    color: #fff; 
+    transform: scale(1.2); 
+}
+
+#time-display {
+    position: absolute; 
+    top: 20px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); 
+    padding: 5px 20px; 
+    border-radius: 20px;
+    color: #fff; 
+    font-size: 16px; 
+    font-weight: bold; 
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex; 
+    align-items: center; 
+    gap: 10px;
+}
+
+#action-bar {
+    position: absolute; 
+    bottom: 30px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    display: flex; 
+    gap: 15px; 
+    background: rgba(20, 30, 35, 0.95);
+    padding: 10px 20px; 
+    border-radius: 50px; 
+    border: 1px solid #455a64;
+}
+.action-btn {
+    background: #37474f; 
+    color: white; 
+    border: 2px solid #546e7a;
+    width: 60px; 
+    height: 60px; 
+    border-radius: 50%; 
+    font-size: 12px; 
+    font-weight: bold; 
+    cursor: pointer;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    transition: all 0.2s; 
+    position: relative;
+}
+.action-btn:hover { 
+    transform: translateY(-5px); 
+    background: #455a64; 
+}
+.action-btn.active { 
+    border-color: #ffca28; 
+    background: #546e7a; 
+}
+.action-btn.disabled { 
+    opacity: 0.4; 
+    cursor: not-allowed; 
+    filter: grayscale(1); 
+}
+.cost-badge { 
+    position: absolute; 
+    top: -5px; 
+    right: -5px; 
+    background: #0277bd; 
+    color: white; 
+    width: 20px; 
+    height: 20px; 
+    border-radius: 50%; 
+    font-size: 11px; 
+    line-height: 20px; 
+    text-align: center; 
+    border: 2px solid #263238; 
+}
+
+/* Modals */
+.modal-content {
+    background: #263238; 
+    padding: 25px; 
+    border-radius: 10px; 
+    width: 320px;
+    border: 2px solid #546e7a; 
+    box-shadow: 0 0 40px rgba(0,0,0,0.9); 
+    color: #eceff1;
+    pointer-events: auto; 
+    display: none; 
+    max-height: 80vh; 
+    overflow-y: auto;
+}
+.setting-group { 
+    margin-bottom: 15px; 
+}
+.setting-label { 
+    display: block; 
+    margin-bottom: 5px; 
+    font-weight: bold; 
+    color: #90a4ae; 
+    font-size: 12px; 
+}
+.setting-sub { 
+    font-size: 10px; 
+    color: #546e7a; 
+    margin-bottom: 5px; 
+    display: block; 
+}
+select, input[type="color"], input[type="range"] { 
+    width: 100%; 
+    padding: 5px; 
+    background: #37474f; 
+    border: 1px solid #546e7a; 
+    color: white; 
+    border-radius: 4px; 
+}
+.modal-btn { 
+    width: 100%; 
+    padding: 10px; 
+    background: #0277bd; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    font-weight: bold; 
+    cursor: pointer; 
+    margin-top: 10px; 
+}
+
+#turn-indicator { 
+    position: absolute; 
+    top: 20%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    background: rgba(0,0,0,0.8); 
+    padding: 10px 40px; 
+    color: white; 
+    font-size: 24px; 
+    font-weight: bold; 
+    border: 1px solid white; 
+    opacity: 0; 
+    letter-spacing: 4px; 
+}
+#game-over, #loading-screen { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: auto; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    z-index: 300;
+}
+#game-over { 
+    background: rgba(0,0,0,0.95); 
+    display: none; 
+}
+#loading-screen { 
+    background: #1a1a2e; 
+    transition: opacity 0.5s; 
+    display: none !important; /* 初始隐藏，由JS控制显示 */
+}
+.restart-btn { 
+    background: #2e7d32; 
+    color: white; 
+    border: none; 
+    padding: 15px 50px; 
+    border-radius: 30px; 
+    font-size: 18px; 
+    font-weight: bold; 
+    cursor: pointer; 
+    margin-top: 30px; 
+}
+
+/* Cursor */
+#cursor-layer { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: none; 
+    z-index: 300; 
+}
+#attack-cursor {
+    position: absolute; 
+    width: 40px; 
+    height: 40px; 
+    transform: translate(-50%, -50%);
+    display: none; 
+    align-items: center; 
+    justify-content: center;
+    font-size: 30px; 
+    text-shadow: 0 0 10px rgba(0,0,0,0.8);
+}
+.cursor-valid { 
+    color: #ff5252; 
+}
+.cursor-invalid { 
+    color: #78909c; 
+    opacity: 0.5; 
+    font-size: 20px; 
+}
+
+/* Color Scheme Selection */
+.scheme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin: 20px 0;
+}
+.scheme-option {
+    cursor: pointer;
+    transition: transform 0.2s;
+    text-align: center;
+}
+.scheme-option:hover {
+    transform: scale(1.05);
+}
+.scheme-preview {
+    width: 100%;
+    height: 80px;
+    border-radius: 8px;
+    border: 3px solid #546e7a;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+}
+.scheme-option.selected .scheme-preview {
+    border-color: #ffca28;
+    box-shadow: 0 0 15px rgba(255, 202, 40, 0.5);
+}
+.scheme-name {
+    color: #eceff1;
+    font-size: 14px;
+    font-weight: bold;
+}
+

@@ -1,0 +1,245 @@
+/* 复用全局样式变量 */
+.translations-page {
+  min-height: 100%;
+  font-family: 'Quicksand', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-light);
+  line-height: 1.6;
+  /* 背景网格装饰 */
+  background-image: 
+    linear-gradient(rgba(136, 192, 208, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(136, 192, 208, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-attachment: fixed;
+}
+
+.translations-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.translations-header {
+  text-align: center;
+  padding: 4rem 0 2rem;
+}
+
+.translations-title {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-light);
+  text-shadow: 0 0 20px rgba(136,192,208,0.3);
+}
+
+.translations-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--secondary);
+  background: rgba(46, 52, 64, 0.6);
+  backdrop-filter: blur(10px);
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 2px dashed var(--primary);
+  opacity: 0.8;
+}
+
+/* 翻译作品网格 */
+.translations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  padding-bottom: 4rem;
+}
+
+/* 卡片样式 */
+.translation-card {
+  background: rgba(46, 52, 64, 0.6);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(136, 192, 208, 0.2);
+  border-radius: 24px;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  transform: rotateX(5deg) translateY(0);
+}
+
+.translation-card:hover {
+  transform: rotateX(0deg) translateY(-10px) scale(1.02);
+  background: rgba(46, 52, 64, 0.9);
+  border-color: var(--primary);
+  box-shadow: 0 20px 50px rgba(136, 192, 208, 0.2);
+  z-index: 10;
+}
+
+/* 卡片顶栏（模仿浏览器窗口） */
+.translation-card-header {
+  background: rgba(59, 66, 82, 0.8);
+  padding: 10px 15px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px dashed rgba(255,255,255,0.1);
+}
+
+.translation-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.1);
+}
+
+.translation-dot.red { background: var(--accent); }
+.translation-dot.yellow { background: var(--secondary); }
+.translation-dot.green { background: var(--highlight); }
+
+.translation-card-content {
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* 书名 */
+.translation-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: var(--text-light);
+}
+
+.translation-original-title {
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  font-style: italic;
+  margin-bottom: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 作者信息 */
+.author-info {
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.author-label {
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+.author-name {
+  color: var(--text-light);
+}
+
+/* 标签 */
+.tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.tags-primary {
+  margin-bottom: 0.5rem;
+}
+
+.tags-secondary {
+  margin-bottom: 1rem;
+}
+
+.tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  background: rgba(235, 203, 139, 0.3);
+  color: #d08770;
+  border-radius: 6px;
+  font-weight: bold;
+}
+
+.tag-language,
+.tag-status {
+  font-weight: 700;
+}
+
+/* 简介 */
+.translation-description {
+  font-size: 0.95rem;
+  color: var(--text-sub);
+  margin-bottom: 1.5rem;
+  flex: 1;
+  line-height: 1.6;
+}
+
+/* 翻译日期 */
+.translate-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: rgba(136, 192, 208, 0.05);
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* 查看按钮样式 */
+.translation-view-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: 'Quicksand', sans-serif;
+  transition: all 0.3s;
+  margin-top: auto;
+  text-decoration: none;
+  display: block;
+  text-align: center;
+}
+
+.translation-view-btn:hover:not(:disabled) {
+  background: rgba(136, 192, 208, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(136, 192, 208, 0.3);
+}
+
+.translation-view-btn:active {
+  transform: translateY(0);
+}
+
+.translation-view-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--text-light);
+  border: 2px solid var(--text-light);
+}
+
+.translation-view-btn:disabled:hover {
+  background: var(--text-light);
+  color: var(--bg-color);
+  transform: none;
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+  .translations-title {
+    font-size: 2rem;
+  }
+  
+  .translations-container {
+    padding: 1rem;
+  }
+  
+  .translations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
