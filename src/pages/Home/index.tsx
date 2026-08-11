@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
 import './styles.css';
 import type { SkillNode, SkillTreeConfig } from './types';
 import { showToast } from '@/components/Toast';
@@ -572,6 +573,14 @@ export default function Home() {
       onMouseUp={handleContainerMouseUp}
       onClick={handleContainerClick}
     >
+      <Helmet>
+        <title>我的代码游乐场 | Seveinn</title>
+        <meta
+          name="description"
+          content="Seveinn 个人作品展示网站，包含游戏开发、翻译作品、创意实验与技术博客。"
+        />
+        <link rel="canonical" href="https://fairycode.tech/" />
+      </Helmet>
       {/* 开发环境显示操作提示和工具按钮 */}
       {isDev && (
         <>

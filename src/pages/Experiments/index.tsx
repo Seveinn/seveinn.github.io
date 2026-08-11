@@ -200,7 +200,7 @@ export default function Experiments() {
     if (typeof window !== 'undefined') {
       return window.location.origin;
     }
-    return 'https://yourdomain.com'; // 默认值，请替换为实际域名
+    return 'https://fairycode.tech';
   };
 
   const baseUrl = getBaseUrl();

@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async';
 import { Translation } from '@/types/translation';
 import './styles.css';
 
@@ -80,6 +81,14 @@ const getLanguageColor = (language: string) => {
 export default function Translations() {
   return (
     <div className="translations-page">
+      <Helmet>
+        <title>翻译作品 | Seveinn</title>
+        <meta
+          name="description"
+          content="Seveinn 的文学与游戏文本翻译作品集。"
+        />
+        <link rel="canonical" href="https://fairycode.tech/translations" />
+      </Helmet>
       <div className="translations-container">
         <header className="translations-header">
           <h1 className="translations-title">📚 翻译作品</h1>
