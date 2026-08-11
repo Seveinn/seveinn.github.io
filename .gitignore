@@ -15,6 +15,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Generated blog data (from content/blog via scripts/build-blog-index.mjs)
+/public/data/blog/index.json
+/public/data/blog/articles/*.json
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
