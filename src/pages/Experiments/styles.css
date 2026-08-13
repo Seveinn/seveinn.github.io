@@ -148,6 +148,23 @@
   line-height: 1.6;
 }
 
+.experiment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: -0.35rem 0 1rem;
+}
+
+.experiment-badges span {
+  padding: 0.22rem 0.48rem;
+  color: var(--secondary);
+  background: rgba(235, 203, 139, 0.08);
+  border: 1px solid rgba(235, 203, 139, 0.28);
+  border-radius: 999px;
+  font: 600 0.66rem 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
 /* 查看按钮样式 */
 .experiment-view-btn {
   width: 100%;

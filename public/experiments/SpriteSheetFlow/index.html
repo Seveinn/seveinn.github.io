@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpriteSheetFlow · 批量裁剪、抠图与精灵图工作流</title>
+  <meta name="description" content="在浏览器本地完成序列帧批量裁剪、自动抠图、动画预览与 Sprite Sheet 合成导出。" />
+  <meta name="theme-color" content="#11151c" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="remove_bg_tool.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <h1>裁剪 · 抠图 · Sheet</h1>
+      <p>当前帧批量裁切 → 抠图与动画预览 → 合成 Sprite Sheet</p>
+    </div>
+
+    <label class="drop" id="dropzone">
+      <strong>拖入或点击导入序列帧 / 精灵图</strong>
+      <span>PNG / JPG / WEBP · 按文件名自然排序</span>
+      <input type="file" id="fileInput" accept="image/*" multiple />
+    </label>
+
+    <div>
+      <p class="section-title">背景色</p>
+      <div class="bg-row">
+        <div class="swatch" id="bgSwatch" title="当前采样/指定背景色"></div>
+        <button type="button" id="btnAutoBg">自动采样</button>
+        <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="color" id="bgColor" value="#e6e6e5" style="width:32px;height:26px;border:none;background:transparent;padding:0;cursor:pointer" />
+          手动
+        </label>
+      </div>
+    </div>
+
+    <div class="panel-tabs" id="sideTabs">
+      <div class="tab-bar tabs-3" role="tablist">
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="crop">批量裁剪</button>
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="matting">抠图参数</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="anim">动画播放</button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel" id="tab-crop" role="tabpanel" hidden>
+          <div class="params">
+            <div class="param">
+              <div class="param-head"><label>网格行列</label></div>
+              <div class="row-inputs">
+                <div>
+                  <span class="mini-label">行</span>
+                  <input type="number" id="cropRows" value="4" min="1" />
+                </div>
+                <div>
+                  <span class="mini-label">列</span>
+                  <input type="number" id="cropCols" value="5" min="1" />
+                </div>
+              </div>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="cropBoxW">单格宽</label><output id="cropBoxWOut">120</output></div>
+              <input type="range" id="cropBoxW" min="5" max="512" step="5" value="120" />
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="cropBoxH">单格高</label><output id="cropBoxHOut">120</output></div>
+              <input type="range" id="cropBoxH" min="5" max="512" step="5" value="120" />
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="cropExportSource">裁切源</label></div>
+              <select id="cropExportSource">
+                <option value="auto" selected>当前预览（优先抠图结果）</option>
+                <option value="result">仅抠图结果</option>
+                <option value="original">仅原图</option>
+              </select>
+              <p class="hint">抠图后再裁剪请选「优先抠图结果」，才会保留透明通道</p>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="cropExportBg">导出背景</label></div>
+              <select id="cropExportBg">
+                <option value="transparent" selected>透明</option>
+                <option value="solid">纯色填充</option>
+              </select>
+              <div class="crop-bg-color" id="cropExportBgColorWrap" hidden>
+                <input type="color" id="cropExportBgColor" value="#e6e6e5" title="填充色" />
+                <span class="mini-label" style="margin:0">填充色</span>
+              </div>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="cropNamePrefix">导出文件前缀</label></div>
+              <input type="text" id="cropNamePrefix" value="frame" spellcheck="false" placeholder="frame" />
+              <p class="hint">导出为「前缀_01.png」「前缀_02.png」…</p>
+            </div>
+            <p class="hint" style="margin:0;font-size:0.72rem;color:var(--muted);line-height:1.4">
+              裁剪框叠在预览区当前帧上，可拖动微调。
+            </p>
+            <button type="button" id="cropGenerate" style="width:100%">生成 / 重置网格</button>
+            <div class="btn-row">
+              <button type="button" id="cropClear">清除框</button>
+              <button type="button" id="cropExportZip">导出 ZIP</button>
+            </div>
+            <button type="button" class="primary" id="cropApply" style="width:100%">裁入帧列表</button>
+          </div>
+        </div>
+        <div class="tab-panel active" id="tab-matting" role="tabpanel">
+          <div class="params">
+            <div class="param">
+              <div class="param-head"><label for="tol">容差 TOL</label><output id="tolOut">42</output></div>
+              <input type="range" id="tol" min="0" max="120" step="1" value="42" />
+              <p class="hint">与背景色 RGB 距离阈值</p>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="inset">向内抠 INSET</label><output id="insetOut">5</output></div>
+              <input type="range" id="inset" min="0" max="20" step="1" value="5" />
+              <p class="hint">腐蚀轮廓，去掉白边</p>
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="fringe">去白边 FRINGE</label><output id="fringeOut">55</output></div>
+              <input type="range" id="fringe" min="0" max="120" step="1" value="55" />
+            </div>
+            <div class="param">
+              <div class="param-head"><label for="soft">软边 SOFT</label><output id="softOut">0</output></div>
+              <input type="range" id="soft" min="0" max="40" step="1" value="0" />
+            </div>
+            <div class="param spot-tools">
+              <div class="param-head">
+                <label>残留色卡</label>
+                <button type="button" id="btnSpotErase" class="spot-toggle" title="开启点选扣除">点选扣除</button>
+              </div>
+              <div class="param-head"><label for="spotMode">扣除模式</label></div>
+              <select id="spotMode">
+                <option value="boundary">边界模式</option>
+                <option value="range">范围模式</option>
+              </select>
+              <div class="spot-tol-wrap" id="spotTolBoundaryWrap">
+                <div class="param-head" style="margin-top:8px"><label for="spotTolBoundary">边界容差</label><output id="spotTolBoundaryOut">200</output></div>
+                <input type="range" id="spotTolBoundary" min="200" max="400" step="10" value="200" />
+              </div>
+              <div class="spot-tol-wrap" id="spotTolRangeWrap" hidden>
+                <div class="param-head" style="margin-top:8px"><label for="spotTolRange">范围容差</label><output id="spotTolRangeOut">36</output></div>
+                <input type="range" id="spotTolRange" min="4" max="120" step="1" value="36" />
+                <div class="param-head" style="margin-top:8px"><label for="spotRadius">范围半径</label><output id="spotRadiusOut">36</output></div>
+                <input type="range" id="spotRadius" min="8" max="160" step="1" value="36" />
+              </div>
+              <p class="hint" id="spotModeHint">边界模式：沿同色连通区域扣除，异色边框会拦住扩展</p>
+              <div class="param-head" style="margin-top:10px"><label for="eraserRadius">橡皮擦半径</label><output id="eraserRadiusOut">12</output></div>
+              <input type="range" id="eraserRadius" min="1" max="64" step="1" value="12" />
+              <p class="hint">按住拖动直接擦除笔刷范围内的像素（不区分颜色）</p>
+            </div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-anim" role="tabpanel" hidden>
+          <div class="btn-row" style="margin-bottom:10px">
+            <button type="button" id="playBtn">播放</button>
+            <button type="button" id="prevBtn">上一帧</button>
+            <button type="button" id="nextBtn">下一帧</button>
+          </div>
+          <div class="field">
+            <label>播放模式</label>
+            <select id="playMode">
+              <option value="loop">循环 Loop</option>
+              <option value="pingpong">乒乓 Ping-Pong</option>
+              <option value="once">单次 Once</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>镜像 Flip X</label>
+            <select id="flipX">
+              <option value="false">正常</option>
+              <option value="true">水平翻转</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>目标帧率 FPS <output id="fpsVal">12</output></label>
+            <input type="range" id="fpsRange" min="1" max="60" value="12" />
+          </div>
+          <div class="field">
+            <label>播放速率 <output id="speedVal">1.0x</output></label>
+            <input type="range" id="speedRange" min="0.1" max="3" step="0.1" value="1" />
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>每帧额外延迟 <output id="delayVal">0 ms</output></label>
+            <input type="range" id="delayRange" min="0" max="500" step="10" value="0" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <div class="preview-bg">
+        预览底：
+        <button type="button" class="chk" data-bg="checker" title="棋盘格"></button>
+        <button type="button" class="dark" data-bg="dark" title="黑底"></button>
+        <button type="button" class="light" data-bg="light" title="浅底"></button>
+      </div>
+      <div class="canvas-size" title="调整预览画布显示大小">
+        <label for="canvasSize">画布 <output id="canvasSizeOut">100%</output></label>
+        <input type="range" id="canvasSize" min="80" max="300" step="1" value="100" />
+        <button type="button" id="btnCanvasFit" class="ghost" title="重置为适配预览区">适配</button>
+      </div>
+      <button type="button" class="primary" id="btnProcess" disabled>处理全部抠图</button>
+      <button type="button" class="accent" id="exportBtn" disabled>合成 Sprite Sheet</button>
+      <button type="button" id="btnDownload" disabled>下载透明帧 ZIP</button>
+      <button type="button" class="ghost" id="btnClear" disabled>清空列表</button>
+      <div class="status" id="status">未导入图片</div>
+    </div>
+    <div class="progress"><i id="progressBar"></i></div>
+
+    <div class="workspace">
+      <div class="stage-panel">
+        <div class="stage-tools" id="stageTools">
+          <div class="stage-tools-handle" id="stageToolsHandle" title="拖拽移动工具条" aria-label="拖拽移动工具条">
+            <span></span><span></span>
+          </div>
+          <button type="button" id="btnSpotEraseBar" class="spot-toggle" disabled title="点击清除连通同色区域，异色边框外不受影响">点选扣除</button>
+          <button type="button" id="btnEraser" class="erase-toggle" disabled title="拖动擦除笔刷范围内的像素">橡皮擦</button>
+          <button type="button" id="btnUndo" disabled title="撤销上一步抠图/点选扣除/橡皮擦等操作（Ctrl+Z）">撤销</button>
+          <button type="button" id="btnReprocessSel" disabled title="按当前参数重算当前帧">重算</button>
+          <button type="button" id="btnCompare" disabled title="对比原图与抠图结果">对比</button>
+        </div>
+        <div class="stage-wrap checker" id="stageWrap">
+          <div class="hud" id="hudInfo">FPS: 12 · 帧: 0/0</div>
+          <div class="stage-content" id="stageContent">
+            <canvas id="stage"></canvas>
+            <div class="crop-layer" id="cropLayer" hidden></div>
+          </div>
+          <div class="stage-empty" id="stageEmpty">导入序列帧后在此预览动画</div>
+        </div>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="hint-empty">时间轴：导入图片后显示各帧缩略图</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 抠图对比 -->
+  <div class="modal" id="compare">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="compareTitle">对比预览</h2>
+        <button type="button" id="btnCloseCompare">关闭</button>
+      </div>
+      <div class="modal-body compare-body">
+        <div class="compare-pane">
+          <div class="label">原图</div>
+          <div class="stage checker" id="stageBefore"></div>
+        </div>
+        <div class="compare-pane">
+          <div class="label">抠图后</div>
+          <div class="stage checker" id="stageAfter"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprite Sheet -->
+  <div class="modal" id="exportModal">
+    <div class="modal-panel" style="width:min(960px,100%)">
+      <div class="modal-head">
+        <h2>合成 Sprite Sheet</h2>
+        <button type="button" id="closeModalBtn">关闭</button>
+      </div>
+      <div class="modal-body sheet-body">
+        <div class="field" style="margin:0;max-width:360px">
+          <label>排列方向</label>
+          <select id="sheetLayout">
+            <option value="horizontal">横向一字排开（1 行 N 列）</option>
+            <option value="grid">网格自动排布（Grid Auto）</option>
+          </select>
+        </div>
+        <p style="margin:0;font-size:0.8rem;color:var(--muted)">优先使用已抠图透明帧；未处理的帧用原图。可勾选「仅已抠图」避免混入实底。</p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="sheetOnlyProcessed" checked />
+          仅导出已抠图的帧
+        </label>
+        <div class="sheet-preview">
+          <canvas id="spriteCanvas"></canvas>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" id="closeModalBtn2">取消</button>
+          <button type="button" class="primary" id="downloadSheetBtn">下载 PNG 精灵图</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

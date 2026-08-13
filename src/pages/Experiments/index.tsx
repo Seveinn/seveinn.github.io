@@ -15,6 +15,12 @@ interface Experiment {
 
 const experiments: Experiment[] = [
   {
+    id: 'sprite-sheet-flow',
+    title: 'SpriteSheetFlow',
+    description: '面向游戏美术工作流的浏览器工具：批量裁剪序列帧、自动抠图、逐帧修整与动画预览，并可合成、导出 Sprite Sheet。图片仅在本地浏览器处理。',
+    path: '/experiments/SpriteSheetFlow/index.html',
+  },
+  {
     id: 'hex-wilds',
     title: 'Hex Survival: Day & Night',
     description: '一个六边形网格生存游戏，包含昼夜循环系统，体验策略与生存的挑战。',
@@ -271,11 +277,16 @@ export default function Experiments() {
               <div className="experiment-card-content">
                 <h2 className="experiment-title">{experiment.title}</h2>
                 <p className="experiment-description">{experiment.description}</p>
+                {experiment.id === 'sprite-sheet-flow' && (
+                  <div className="experiment-badges" aria-label="作品特性">
+                    <span>WEB TOOL</span><span>CANVAS</span><span>LOCAL-FIRST</span>
+                  </div>
+                )}
                 <button
                   onClick={() => openExperiment(experiment)}
                   className="experiment-view-btn"
                 >
-                  查看实验
+                  {experiment.id === 'sprite-sheet-flow' ? '打开工具' : '查看实验'}
                 </button>
               </div>
             </div>
