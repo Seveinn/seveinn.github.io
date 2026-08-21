@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Generate robots.txt and sitemap.xml into public/ before Vite build.
- * Reads published blog index produced by build-blog-index.mjs.
+ * Discovers public experiment pages and emits the public site index.
  */
-import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
+import { readdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SITE_ORIGIN } from './site-config.mjs';
@@ -11,7 +11,6 @@ import { SITE_ORIGIN } from './site-config.mjs';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = join(__dirname, '..');
 const publicDir = join(root, 'public');
-const blogIndexPath = join(publicDir, 'data', 'blog', 'index.json');
 const experimentsDir = join(publicDir, 'experiments');
 
 function fail(msg) {
@@ -46,27 +45,11 @@ function listExperimentUrls() {
 }
 
 function main() {
-  if (!existsSync(blogIndexPath)) {
-    fail(`missing ${blogIndexPath}; run build-blog-index first`);
-  }
-
-  const articles = JSON.parse(readFileSync(blogIndexPath, 'utf8')).filter(
-    (a) => a.status === 'published'
-  );
-
   const staticPages = [
     { loc: `${SITE_ORIGIN}/`, changefreq: 'weekly', priority: '1.0' },
     { loc: `${SITE_ORIGIN}/experiments`, changefreq: 'weekly', priority: '0.9' },
     { loc: `${SITE_ORIGIN}/translations`, changefreq: 'monthly', priority: '0.8' },
-    { loc: `${SITE_ORIGIN}/blog`, changefreq: 'weekly', priority: '0.9' },
   ];
-
-  const blogPages = articles.map((a) => ({
-    loc: `${SITE_ORIGIN}/blog/${a.slug}`,
-    lastmod: (a.updatedDate || a.publishDate || '').slice(0, 10) || undefined,
-    changefreq: 'monthly',
-    priority: '0.7',
-  }));
 
   const experimentPages = listExperimentUrls().map((loc) => ({
     loc,
@@ -74,7 +57,7 @@ function main() {
     priority: '0.6',
   }));
 
-  const all = [...staticPages, ...blogPages, ...experimentPages];
+  const all = [...staticPages, ...experimentPages];
 
   const urlXml = all
     .map((entry) => {
@@ -104,7 +87,7 @@ Sitemap: ${SITE_ORIGIN}/sitemap.xml
   writeFileSync(join(publicDir, 'robots.txt'), robots, 'utf8');
 
   console.log(
-    `[generate-seo-assets] wrote robots.txt + sitemap.xml (${all.length} URLs, ${articles.length} articles)`
+    `[generate-seo-assets] wrote robots.txt + sitemap.xml (${all.length} URLs)`
   );
 }
 

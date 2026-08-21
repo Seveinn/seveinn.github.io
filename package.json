@@ -4,9 +4,8 @@
   "description": "Seveinn个人作品展示网站",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/build-blog-index.mjs --include-drafts",
     "dev": "vite --mode development",
-    "prebuild": "node scripts/build-blog-index.mjs && node scripts/generate-seo-assets.mjs",
+    "prebuild": "node scripts/generate-seo-assets.mjs",
     "build": "tsc && vite build --mode production",
     "postbuild": "node scripts/prepare-github-pages.mjs",
     "build:blog": "node scripts/build-blog-index.mjs",

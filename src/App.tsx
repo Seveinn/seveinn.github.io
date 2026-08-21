@@ -5,7 +5,6 @@ import Home from './pages/Home';
 import Translations from './pages/Translations';
 import Experiments from './pages/Experiments';
 import NotFoundPage from './pages/NotFound';
-import { blogRoutes } from './modules/blog/routes';
 import './App.css';
 
 export default function App() {
@@ -19,7 +18,6 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/translations" element={<Translations />} />
           <Route path="/experiments" element={<Experiments />} />
-          {blogRoutes}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

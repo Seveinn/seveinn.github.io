@@ -15,6 +15,18 @@ interface Experiment {
 
 const experiments: Experiment[] = [
   {
+    id: 'story-node',
+    title: 'StoryNode · 剧情节点生成器',
+    description: '可视化互动剧情设计工具，支持节点编辑、画布漫游、AI 分支演算，以及剧情数据与完整剧本导出。',
+    path: '/experiments/StoryNode/index.html',
+  },
+  {
+    id: 'particle-atelier',
+    title: 'Particle Atelier · 粒子特效实验室',
+    description: '一个可交互的实时粒子特效展厅，汇集闪电、暴雨、云雾、烟雾、火光、水流，以及奥术与虚空风格的攻击特效。',
+    path: '/experiments/ParticleAtelier/index.html',
+  },
+  {
     id: 'sprite-sheet-flow',
     title: 'SpriteSheetFlow',
     description: '面向游戏美术工作流的浏览器工具：批量裁剪序列帧、自动抠图、逐帧修整与动画预览，并可合成、导出 Sprite Sheet。图片仅在本地浏览器处理。',
@@ -260,19 +272,17 @@ export default function Experiments() {
     <div className="experiments-page" onKeyDown={handleKeyDown} tabIndex={0}>
       <div className="experiments-container">
         <header className="experiments-header">
-          <h1 className="experiments-title">🎨 实验作品</h1>
-          <div className="experiments-subtitle">
-            &lt;Experiment&gt; 探索创意与技术的结合 &lt;/Experiment&gt;
-          </div>
+          <p className="experiments-eyebrow">CREATIVE ORBIT · {String(experiments.length).padStart(2, '0')} PROJECTS</p>
+          <h1 className="experiments-title">实验作品</h1>
+          <p className="experiments-subtitle">在代码与想象之间，收集每一次可以被触碰的灵感。</p>
         </header>
         
         <div className="experiments-grid">
-          {experiments.map((experiment) => (
-            <div key={experiment.id} className="experiment-card">
+          {experiments.map((experiment, index) => (
+            <article key={experiment.id} className="experiment-card">
               <div className="experiment-card-header">
-                <div className="experiment-dot red"></div>
-                <div className="experiment-dot yellow"></div>
-                <div className="experiment-dot green"></div>
+                <span>PROJECT / {String(index + 1).padStart(2, '0')}</span>
+                <span className="experiment-status">可交互</span>
               </div>
               <div className="experiment-card-content">
                 <h2 className="experiment-title">{experiment.title}</h2>
@@ -286,10 +296,11 @@ export default function Experiments() {
                   onClick={() => openExperiment(experiment)}
                   className="experiment-view-btn"
                 >
-                  {experiment.id === 'sprite-sheet-flow' ? '打开工具' : '查看实验'}
+                  <span>{experiment.id === 'sprite-sheet-flow' ? '打开工具' : '进入作品'}</span>
+                  <span aria-hidden="true">↗</span>
                 </button>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       </div>
@@ -304,7 +315,7 @@ export default function Experiments() {
           className={`experiment-window ${isFullscreen ? 'fullscreen' : ''} ${isMobileMode ? 'mobile-mode' : ''}`}
         >
           <div className="experiment-window-bar">
-            <span>{isMobileMode ? '📱 移动端预览' : '正在运行: '}{isMobileMode ? '' : `${currentExperimentTitle}.exe`}</span>
+            <span>{isMobileMode ? '移动端预览' : currentExperimentTitle}</span>
             <div className="experiment-window-controls">
               <button 
                 className="experiment-fullscreen-btn" 

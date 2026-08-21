@@ -16,83 +16,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://fairycode.tech/blog</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/react-advanced-features</loc>
-    <lastmod>2021-03-31</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/react-basics</loc>
-    <lastmod>2021-03-31</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/react-interview-questions</loc>
-    <lastmod>2021-03-31</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/react-redux-react-router</loc>
-    <lastmod>2021-03-31</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue3-interview-questions</loc>
-    <lastmod>2021-03-27</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/front-end-reading-notes</loc>
-    <lastmod>2021-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue-interview-questions</loc>
-    <lastmod>2021-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/front-end-engineering-code-style</loc>
-    <lastmod>2021-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue-basics</loc>
-    <lastmod>2021-03-24</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue-principle</loc>
-    <lastmod>2021-03-24</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue-advanced-features</loc>
-    <lastmod>2021-03-23</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://fairycode.tech/blog/vue-interview-notes</loc>
-    <lastmod>2021-03-23</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://fairycode.tech/experiments/GrowingTree/index.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -118,7 +41,22 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://fairycode.tech/experiments/ParticleAtelier/index.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://fairycode.tech/experiments/Rainy3D/index.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fairycode.tech/experiments/SpriteSheetFlow/index.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fairycode.tech/experiments/StoryNode/index.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

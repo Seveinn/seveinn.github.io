@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#080b10" />
+  <title>Particle Atelier · 粒子特效实验室</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Particle Atelier 首页">
+        <span class="brand-mark"><i></i><i></i><i></i></span>
+        <span><b>PARTICLE</b><em>ATELIER</em></span>
+      </a>
+      <div class="status"><span></span> REALTIME CANVAS · 60 FPS</div>
+      <button class="icon-button" id="fullscreen" aria-label="全屏">⌗</button>
+    </header>
+
+    <section class="intro">
+      <div>
+        <p class="eyebrow">VFX / PROCEDURAL MOTION / CANVAS</p>
+        <h1>捕捉元素的<br><span>瞬间。</span></h1>
+      </div>
+      <p class="lede">一个实时粒子特效实验场。选择元素，观察它的运动语言；也可以在画布任意位置点击，亲手释放能量。</p>
+    </section>
+
+    <section class="workbench">
+      <aside class="library" aria-label="特效库">
+        <div class="section-label"><span>01</span> EFFECT LIBRARY</div>
+        <nav id="effect-list">
+          <button class="effect active" data-effect="lightning"><span class="glyph">ϟ</span><span><b>闪电</b><small>LIGHTNING</small></span><i>01</i></button>
+          <button class="effect" data-effect="rain"><span class="glyph">╱</span><span><b>暴雨</b><small>DOWNPOUR</small></span><i>02</i></button>
+          <button class="effect" data-effect="cloud"><span class="glyph">◌</span><span><b>云雾</b><small>MIST</small></span><i>03</i></button>
+          <button class="effect" data-effect="smoke"><span class="glyph">≈</span><span><b>烟雾</b><small>SMOKE</small></span><i>04</i></button>
+          <button class="effect" data-effect="fire"><span class="glyph">♢</span><span><b>火光</b><small>EMBER</small></span><i>05</i></button>
+          <button class="effect" data-effect="water"><span class="glyph">⌒</span><span><b>水流</b><small>WATER</small></span><i>06</i></button>
+          <button class="effect" data-effect="arcane"><span class="glyph">✣</span><span><b>奥术攻击</b><small>ARCANE</small></span><i>07</i></button>
+          <button class="effect" data-effect="void"><span class="glyph">◎</span><span><b>虚空冲击</b><small>VOID IMPACT</small></span><i>08</i></button>
+        </nav>
+      </aside>
+
+      <div class="stage-wrap">
+        <canvas id="stage"></canvas>
+        <div class="stage-grid"></div>
+        <div class="stage-head">
+          <span>LIVE PREVIEW</span><span id="particle-count">000 PARTICLES</span>
+        </div>
+        <div class="crosshair" id="crosshair"><i></i></div>
+        <div class="effect-title">
+          <span id="effect-index">01 / 08</span>
+          <h2 id="effect-name">LIGHTNING</h2>
+          <p id="effect-desc">不稳定的分形路径，短促、高亮、带有残影。</p>
+        </div>
+        <p class="hint"><span>＋</span> 点击画布 · 释放特效</p>
+      </div>
+
+      <aside class="controls">
+        <div class="section-label"><span>02</span> PARAMETERS</div>
+        <label class="range-label"><span>强度 <output id="intensity-value">72</output></span><input id="intensity" type="range" min="25" max="100" value="72"></label>
+        <label class="range-label"><span>粒子尺寸 <output id="size-value">54</output></span><input id="size" type="range" min="20" max="100" value="54"></label>
+        <label class="range-label"><span>运动速度 <output id="speed-value">68</output></span><input id="speed" type="range" min="25" max="100" value="68"></label>
+        <div class="toggle-row"><span>自动演示<small>AUTO PLAY</small></span><button id="autoplay" class="toggle on" role="switch" aria-checked="true"><i></i></button></div>
+        <button id="trigger" class="trigger"><span>TRIGGER EFFECT</span><b>释放特效</b><i>↗</i></button>
+        <div class="tech"><span>RENDER</span><b>HTML5 CANVAS</b><span>BLEND</span><b>SCREEN / LIGHTER</b></div>
+      </aside>
+    </section>
+
+    <footer><span>SEVEINN · CREATIVE CODE LAB</span><span>MOVE CURSOR TO INTERACT <i></i></span></footer>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

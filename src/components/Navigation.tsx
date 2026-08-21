@@ -10,7 +10,6 @@ export default function Navigation() {
         <div className="nav-links">
           <Link to="/experiments" className={`nav-link ${pathname === '/experiments' ? 'active' : ''}`}>实验作品</Link>
           <Link to="/translations" className={`nav-link ${pathname === '/translations' ? 'active' : ''}`}>文学翻译</Link>
-          <Link to="/blog" className={`nav-link ${pathname.startsWith('/blog') ? 'active' : ''}`}>技术博客</Link>
         </div>
       </div>
     </nav>
