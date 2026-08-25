@@ -6,6 +6,7 @@
  *  sourceCanvas: HTMLCanvasElement,
  *  resultCanvas: HTMLCanvasElement | null,
  *  processed: boolean,
+ *  selected: boolean,
  *  bg: number[] | null,
  *  eraseMask: Uint8Array | null,
  * }} FrameItem */
@@ -35,6 +36,8 @@ export const state = {
   brushErase: false,
   /** 预览区裁剪网格模式 */
   cropMode: false,
+  /** 立绘裁剪线模式 */
+  portraitMode: false,
 };
 
 export const $ = (sel) => document.querySelector(sel);

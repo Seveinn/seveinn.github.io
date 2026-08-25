@@ -38,10 +38,11 @@
     </div>
 
     <div class="panel-tabs" id="sideTabs">
-      <div class="tab-bar tabs-3" role="tablist">
+      <div class="tab-bar tabs-4" role="tablist">
         <button type="button" class="tab" role="tab" aria-selected="false" data-tab="crop">批量裁剪</button>
         <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="matting">抠图参数</button>
         <button type="button" class="tab" role="tab" aria-selected="false" data-tab="anim">动画播放</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="portrait">立绘裁剪</button>
       </div>
       <div class="tab-panels">
         <div class="tab-panel" id="tab-crop" role="tabpanel" hidden>
@@ -184,6 +185,28 @@
             <input type="range" id="delayRange" min="0" max="500" step="10" value="0" />
           </div>
         </div>
+        <div class="tab-panel" id="tab-portrait" role="tabpanel" hidden>
+          <div class="params">
+            <p class="hint" style="margin:0;font-size:0.72rem;color:var(--muted);line-height:1.45">
+              例图标定头顶/下巴与裁切底。预览时对齐例图头宽与头顶边距，肩宽用同一套测量；预期画幅尺寸与例图相同，可滚动查看完整框线。
+            </p>
+            <div class="portrait-metrics" id="portraitMetrics">
+              <div><span>头高</span><output id="portraitHeadH">—</output></div>
+              <div><span>身宽</span><output id="portraitBodyW">—</output></div>
+              <div><span>保留头身</span><output id="portraitRatio">—</output></div>
+              <div><span>裁剪高</span><output id="portraitCropH">—</output></div>
+            </div>
+            <div class="btn-row">
+              <button type="button" id="portraitResetLines">重置裁剪线</button>
+              <button type="button" id="portraitGotoExample">看例图</button>
+            </div>
+            <button type="button" class="primary" id="portraitApply" style="width:100%">预览裁剪范围</button>
+            <button type="button" class="accent" id="portraitConfirm" style="width:100%;margin-top:8px">确认裁剪（对齐例图）</button>
+            <p class="hint" style="margin:0;font-size:0.7rem;color:var(--muted);line-height:1.4">
+              预览按例图头宽缩放（肩宽口径与例图统一）；头顶边距对齐。不同角色头身比不同时，身宽占比可能略有差异。
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -201,7 +224,7 @@
         <input type="range" id="canvasSize" min="80" max="300" step="1" value="100" />
         <button type="button" id="btnCanvasFit" class="ghost" title="重置为适配预览区">适配</button>
       </div>
-      <button type="button" class="primary" id="btnProcess" disabled>处理全部抠图</button>
+      <button type="button" class="primary" id="btnProcess" disabled title="仅处理时间轴中已勾选的帧">处理全部抠图</button>
       <button type="button" class="accent" id="exportBtn" disabled>合成 Sprite Sheet</button>
       <button type="button" id="btnDownload" disabled>下载透明帧 ZIP</button>
       <button type="button" class="ghost" id="btnClear" disabled>清空列表</button>
@@ -226,12 +249,22 @@
           <div class="stage-content" id="stageContent">
             <canvas id="stage"></canvas>
             <div class="crop-layer" id="cropLayer" hidden></div>
+            <div class="portrait-layer" id="portraitLayer" hidden></div>
           </div>
           <div class="stage-empty" id="stageEmpty">导入序列帧后在此预览动画</div>
         </div>
       </div>
-      <div class="timeline" id="timeline">
-        <div class="hint-empty">时间轴：导入图片后显示各帧缩略图</div>
+      <div class="timeline-wrap">
+        <div class="timeline-bar" id="timelineBar" hidden>
+          <label class="timeline-select-all" title="全选 / 取消全选">
+            <input type="checkbox" id="btnSelectAllFrames" />
+            <span>全选</span>
+          </label>
+          <span class="timeline-sel-count" id="timelineSelCount">已选 0</span>
+        </div>
+        <div class="timeline" id="timeline">
+          <div class="hint-empty">时间轴：导入图片后显示各帧缩略图</div>
+        </div>
       </div>
     </div>
   </main>

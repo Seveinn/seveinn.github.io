@@ -176,6 +176,10 @@ export function clearCropBoxes() {
 export function setCropMode(on) {
   state.cropMode = on;
   if (on) {
+    state.portraitMode = false;
+    $("#stageWrap")?.classList.remove("portrait-mode");
+    const portraitLayer = $("#portraitLayer");
+    if (portraitLayer) portraitLayer.hidden = true;
     state.isPlaying = false;
     state.spotErase = false;
     state.brushErase = false;

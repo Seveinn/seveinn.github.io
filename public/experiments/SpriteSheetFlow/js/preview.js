@@ -13,6 +13,26 @@ const FIT_PAD = 0.9;
 /** 画布相对内容的额外边距（CSS px） */
 const STAGE_MARGIN = 24;
 
+/** 立绘预览等：在图像四周额外留白（图像像素），便于画出超出原图的画幅框 */
+/** @type {{ top: number, right: number, bottom: number, left: number }} */
+let contentInsetsPx = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/**
+ * @param {{ top?: number, right?: number, bottom?: number, left?: number } | null} insets 图像像素
+ */
+export function setStageContentInsetsPx(insets) {
+  contentInsetsPx = {
+    top: Math.max(0, insets?.top || 0),
+    right: Math.max(0, insets?.right || 0),
+    bottom: Math.max(0, insets?.bottom || 0),
+    left: Math.max(0, insets?.left || 0),
+  };
+}
+
+export function clearStageContentInsetsPx() {
+  contentInsetsPx = { top: 0, right: 0, bottom: 0, left: 0 };
+}
+
 /** @type {(index: number) => void | Promise<void>} */
 let onCompare = () => {};
 /** @type {(() => void) | null} */
@@ -90,15 +110,26 @@ export function getFrameDrawRect() {
   const dwCss = src.width * cssScale;
   const dhCss = src.height * cssScale;
 
-  const needCssW = Math.max(viewCssW, Math.ceil(dwCss + STAGE_MARGIN * 2));
-  const needCssH = Math.max(viewCssH, Math.ceil(dhCss + STAGE_MARGIN * 2));
-  const { w: viewW, h: viewH } = syncStageBuffer(needCssW, needCssH);
+  const iL = contentInsetsPx.left * cssScale;
+  const iR = contentInsetsPx.right * cssScale;
+  const iT = contentInsetsPx.top * cssScale;
+  const iB = contentInsetsPx.bottom * cssScale;
+  const margin = state.portraitMode ? Math.max(STAGE_MARGIN, 40) : STAGE_MARGIN;
+
+  const contentCssW = dwCss + iL + iR;
+  const contentCssH = dhCss + iT + iB;
+  const needCssW = Math.max(viewCssW, Math.ceil(contentCssW + margin * 2));
+  const needCssH = Math.max(viewCssH, Math.ceil(contentCssH + margin * 2));
+  const { w: viewW, h: viewH, cssW, cssH } = syncStageBuffer(needCssW, needCssH);
 
   const scale = cssScale * dpr;
   const dw = src.width * scale;
   const dh = src.height * scale;
-  const dx = (viewW - dw) / 2;
-  const dy = (viewH - dh) / 2;
+  // 在扩展画布内为 insets 留空，图像仍居中于「内容区」
+  const oxCss = (cssW - contentCssW) / 2;
+  const oyCss = (cssH - contentCssH) / 2;
+  const dx = (oxCss + iL) * dpr;
+  const dy = (oyCss + iT) * dpr;
 
   return {
     viewW,
@@ -113,6 +144,7 @@ export function getFrameDrawRect() {
     dx,
     dy,
     zoomPct: Math.round(user * 100),
+    insetsPx: { ...contentInsetsPx },
   };
 }
 
@@ -183,9 +215,11 @@ export function renderFrame() {
   stageCtx.restore();
 
   const tag = item.processed ? "抠图" : "原图";
-  const tool = state.cropMode
-    ? " · 裁剪"
-    : (state.brushErase ? " · 橡皮擦" : (state.spotErase ? " · 点选扣除" : ""));
+  const tool = state.portraitMode
+    ? " · 立绘裁剪"
+    : state.cropMode
+      ? " · 裁剪"
+      : (state.brushErase ? " · 橡皮擦" : (state.spotErase ? " · 点选扣除" : ""));
   hudInfo.textContent =
     `FPS: ${state.fps} · 速率: ${state.speed}x · 帧: ${state.currentFrame + 1}/${state.items.length}`
     + ` · ${rect.srcW}×${rect.srcH} · 画布 ${rect.zoomPct}% · ${tag}${tool}`;
@@ -193,17 +227,51 @@ export function renderFrame() {
   afterRender?.();
 }
 
+/** @type {(() => void) | null} */
+let onSelectionChange = null;
+
+export function setSelectionChangeHandler(fn) {
+  onSelectionChange = fn;
+}
+
+export function updateSelectionUI() {
+  const bar = $("#timelineBar");
+  const countEl = $("#timelineSelCount");
+  const allCb = /** @type {HTMLInputElement | null} */ ($("#btnSelectAllFrames"));
+  const n = state.items.length;
+  if (bar) bar.hidden = n === 0;
+  if (!n) return;
+
+  const selected = state.items.filter((i) => i.selected).length;
+  if (countEl) countEl.textContent = `已选 ${selected}/${n}`;
+  if (allCb) {
+    allCb.checked = selected === n;
+    allCb.indeterminate = selected > 0 && selected < n;
+  }
+}
+
+export function setAllFramesSelected(on) {
+  for (const item of state.items) item.selected = on;
+  updateSelectionUI();
+  renderTimeline();
+  onSelectionChange?.();
+}
+
 export function renderTimeline() {
+  const bar = $("#timelineBar");
   if (!state.items.length) {
     timeline.innerHTML = `<div class="hint-empty">时间轴：导入图片后显示各帧缩略图</div>`;
+    if (bar) bar.hidden = true;
     return;
   }
+  if (bar) bar.hidden = false;
   timeline.innerHTML = "";
   state.items.forEach((item, idx) => {
     const thumb = document.createElement("div");
     thumb.className = "frame-thumb"
       + (idx === state.currentFrame ? " active" : "")
-      + (item.processed ? " done" : "");
+      + (item.processed ? " done" : "")
+      + (item.selected ? "" : " unchecked");
     thumb.dataset.index = String(idx);
 
     const src = frameSource(item);
@@ -216,6 +284,19 @@ export function renderTimeline() {
     tctx.imageSmoothingEnabled = scale < 1;
     tctx.drawImage(src, 0, 0, c.width, c.height);
 
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "frame-check";
+    check.checked = item.selected !== false;
+    check.title = "选中参与批量抠图 / 立绘裁剪";
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      item.selected = check.checked;
+      thumb.classList.toggle("unchecked", !item.selected);
+      updateSelectionUI();
+      onSelectionChange?.();
+    });
+
     const num = document.createElement("div");
     num.className = "num";
     num.textContent = String(idx);
@@ -225,6 +306,7 @@ export function renderTimeline() {
     dot.title = "已抠图";
 
     thumb.appendChild(c);
+    thumb.appendChild(check);
     thumb.appendChild(num);
     thumb.appendChild(dot);
     thumb.addEventListener("click", () => {
@@ -238,6 +320,7 @@ export function renderTimeline() {
     thumb.addEventListener("dblclick", () => onCompare(idx));
     timeline.appendChild(thumb);
   });
+  updateSelectionUI();
 }
 
 export function updateTimelineUI() {

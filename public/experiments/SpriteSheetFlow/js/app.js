@@ -3,6 +3,12 @@ import { hexToRgb, sampleBgFromImageData } from "./remove-bg.js";
 import { buildSpriteSheet } from "./sheet.js";
 import { initBatchCut, setCropMode, onFrameContextChanged, syncCropOverlay } from "./batch-cut.js";
 import {
+  initPortraitCrop,
+  setPortraitMode,
+  syncPortraitOverlay,
+  onPortraitContextChanged,
+} from "./portrait-crop.js";
+import {
   renderFrame,
   renderTimeline,
   applyPreviewBgClass,
@@ -10,6 +16,7 @@ import {
   setCompareHandler,
   setAfterRender,
   setFrameChangeHandler,
+  setAllFramesSelected,
   startAnimLoop,
   stageEventToImageXY,
   setSpotEraseCursor,
@@ -86,7 +93,7 @@ function syncSpotModeUI() {
 }
 
 function setSpotEraseMode(on) {
-  if (on && state.cropMode) {
+  if (on && (state.cropMode || state.portraitMode)) {
     $("#sideTabs")?.querySelector('.tab[data-tab="matting"]')?.click();
   }
   state.spotErase = on;
@@ -108,7 +115,7 @@ function setSpotEraseMode(on) {
 }
 
 function setBrushEraseMode(on, opts = {}) {
-  if (on && state.cropMode) {
+  if (on && (state.cropMode || state.portraitMode)) {
     $("#sideTabs")?.querySelector('.tab[data-tab="matting"]')?.click();
   }
   state.brushErase = on;
@@ -280,12 +287,24 @@ sideTabs.querySelectorAll(".tab").forEach((tab) => {
       panel.hidden = !on;
     });
     setCropMode(name === "crop");
+    setPortraitMode(name === "portrait");
   });
 });
 
 setCompareHandler((idx) => openCompare(idx, processItem, updateButtons));
-setAfterRender(syncCropOverlay);
-setFrameChangeHandler(onFrameContextChanged);
+setAfterRender(() => {
+  syncCropOverlay();
+  syncPortraitOverlay();
+});
+setFrameChangeHandler(() => {
+  onFrameContextChanged();
+  onPortraitContextChanged();
+});
+
+$("#btnSelectAllFrames")?.addEventListener("change", (e) => {
+  const on = /** @type {HTMLInputElement} */ (e.target).checked;
+  setAllFramesSelected(on);
+});
 
 initBatchCut({
   onApply: (frames) => {
@@ -296,6 +315,19 @@ initBatchCut({
   },
   onStatus: setStatus,
   onRender: renderFrame,
+});
+
+initPortraitCrop({
+  onStatus: setStatus,
+  onRender: renderFrame,
+  pushHistory,
+  onApplied: () => {
+    renderTimeline();
+    renderFrame();
+    updateButtons();
+    onFrameContextChanged();
+    onPortraitContextChanged();
+  },
 });
 
 function refreshSheet() {

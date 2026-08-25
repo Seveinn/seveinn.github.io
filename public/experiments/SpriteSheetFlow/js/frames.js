@@ -26,16 +26,22 @@ function snapshotFrame(item) {
   return {
     id: item.id,
     processed: item.processed,
+    width: item.width,
+    height: item.height,
     bg: item.bg ? item.bg.slice() : null,
     eraseMask: item.eraseMask ? new Uint8Array(item.eraseMask) : null,
+    sourceCanvas: cloneCanvas(item.sourceCanvas),
     resultCanvas: item.resultCanvas ? cloneCanvas(item.resultCanvas) : null,
   };
 }
 
 function restoreFrame(item, snap) {
   item.processed = snap.processed;
+  item.width = snap.width ?? item.width;
+  item.height = snap.height ?? item.height;
   item.bg = snap.bg ? snap.bg.slice() : null;
   item.eraseMask = snap.eraseMask ? new Uint8Array(snap.eraseMask) : null;
+  if (snap.sourceCanvas) item.sourceCanvas = cloneCanvas(snap.sourceCanvas);
   item.resultCanvas = snap.resultCanvas ? cloneCanvas(snap.resultCanvas) : null;
 }
 
@@ -255,18 +261,26 @@ export function commitBrushStroke(before, erasedTotal) {
 
 export async function processAll() {
   if (!state.items.length) return;
+  const targets = state.items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.selected !== false);
+  if (!targets.length) {
+    setStatus("未勾选任何帧 · 请在时间轴勾选后再处理抠图");
+    return;
+  }
   pushHistory("处理全部抠图");
   $("#btnProcess").disabled = true;
-  const n = state.items.length;
+  const n = targets.length;
   for (let i = 0; i < n; i++) {
-    setStatus(`抠图 ${i + 1}/${n} · ${state.items[i].name}`);
+    const { item, index } = targets[i];
+    setStatus(`抠图 ${i + 1}/${n} · ${item.name}`);
     progressBar.style.width = ((i + 1) / n * 100) + "%";
-    await processItem(state.items[i]);
+    await processItem(item);
     await new Promise((r) => setTimeout(r, 0));
     renderTimeline();
-    if (i === state.currentFrame) renderFrame();
+    if (index === state.currentFrame) renderFrame();
   }
-  setStatus(`抠图完成 ${n} 张 · TOL=${params().tol} INSET=${params().inset}`);
+  setStatus(`抠图完成 ${n} 张（已选）· TOL=${params().tol} INSET=${params().inset}`);
   progressBar.style.width = "0%";
   updateButtons();
   renderFrame();
@@ -287,6 +301,7 @@ async function loadFile(file) {
     sourceCanvas: canvas,
     resultCanvas: null,
     processed: false,
+    selected: true,
     bg: null,
     eraseMask: null,
   };
@@ -353,6 +368,7 @@ export function addCroppedFrames(frames, opts = {}) {
       sourceCanvas: frame.canvas,
       resultCanvas: asProcessed ? cloneCanvas(frame.canvas) : null,
       processed: asProcessed,
+      selected: true,
       bg: null,
       eraseMask: null,
     });
