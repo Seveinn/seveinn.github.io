@@ -1093,8 +1093,75 @@ function placeOnExampleCanvas(src, metrics, targetW, targetH) {
   return out;
 }
 
+/** @returns {number} 两侧各留白像素 */
+function readSidePadPx() {
+  const el = /** @type {HTMLInputElement | null} */ ($("#portraitSidePad"));
+  const v = Math.round(Number(el?.value));
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(240, v));
+}
+
+function syncSidePadUI() {
+  const out = $("#portraitSidePadOut");
+  if (out) out.textContent = String(readSidePadPx());
+}
+
 /**
- * 确认裁剪：输出为例图尺寸，头顶边距与身宽比与例图一致。
+ * 以画幅底边中心为原点等比缩放（画布尺寸不变）。
+ * @param {HTMLCanvasElement} src
+ * @param {number} scale
+ */
+function scaleCanvasFromBottomCenter(src, scale) {
+  const w = src.width;
+  const h = src.height;
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  if (!(scale > 0)) return out;
+  ctx.imageSmoothingEnabled = true;
+  if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+  ctx.translate(w / 2, h);
+  ctx.scale(scale, scale);
+  ctx.translate(-w / 2, -h);
+  ctx.drawImage(src, 0, 0);
+  return out;
+}
+
+/**
+ * 按两侧留白缩小/放大立绘：目标身宽（不透明包围盒宽）= 画幅宽 − 2×留白。
+ * 变换原点为画幅底边中心。
+ * @param {HTMLCanvasElement} src
+ * @param {number} sidePadPx
+ * @returns {{ canvas: HTMLCanvasElement, scale: number, opaqueW: number, sidePad: number } | null}
+ */
+function applySidePadToCanvas(src, sidePadPx) {
+  const pad = Math.max(0, Math.round(sidePadPx));
+  const bounds = scanOpaqueBounds(readImageData(src));
+  if (!bounds) return null;
+
+  const opaqueW = Math.max(1, bounds.right - bounds.left + 1);
+  const maxBodyW = src.width - pad * 2;
+  if (maxBodyW < 8) {
+    return { canvas: src, scale: 1, opaqueW, sidePad: pad };
+  }
+
+  const scale = maxBodyW / opaqueW;
+  if (Math.abs(scale - 1) < 0.004) {
+    return { canvas: src, scale: 1, opaqueW, sidePad: pad };
+  }
+
+  return {
+    canvas: scaleCanvasFromBottomCenter(src, scale),
+    scale,
+    opaqueW,
+    sidePad: pad,
+  };
+}
+
+/**
+ * 确认裁剪：输出为例图尺寸，头顶边距与身宽比与例图一致；再按两侧留白做底中心缩放。
  */
 export async function confirmPortraitCrop() {
   if (!cropPreviews.size) {
@@ -1116,6 +1183,7 @@ export async function confirmPortraitCrop() {
   }
   const targetW = exampleSrc.width;
   const targetH = exampleSrc.height;
+  const sidePad = readSidePadPx();
 
   const targets = state.items
     .map((item, index) => ({ item, index, preview: cropPreviews.get(item.id) }))
@@ -1126,7 +1194,7 @@ export async function confirmPortraitCrop() {
     return;
   }
 
-  dbg("—— 确认裁剪 · 头顶边距对齐 · 例图尺寸 ——", { targetW, targetH, n: targets.length });
+  dbg("—— 确认裁剪 · 例图尺寸 + 两侧留白 ——", { targetW, targetH, sidePad, n: targets.length });
 
   hooks?.pushHistory?.("立绘确认裁剪", targets.map((t) => t.item));
 
@@ -1136,11 +1204,22 @@ export async function confirmPortraitCrop() {
       const src = resolvePortraitSource(item);
       if (!src) continue;
 
-      const out = placeOnExampleCanvas(src, metrics, targetW, targetH);
+      let out = placeOnExampleCanvas(src, metrics, targetW, targetH);
       if (!out) continue;
-
-      const srcOut = placeOnExampleCanvas(item.sourceCanvas, metrics, targetW, targetH);
+      let srcOut = placeOnExampleCanvas(item.sourceCanvas, metrics, targetW, targetH);
       if (!srcOut) continue;
+
+      if (sidePad > 0) {
+        const padded = applySidePadToCanvas(out, sidePad);
+        const paddedSrc = applySidePadToCanvas(srcOut, sidePad);
+        if (padded) out = padded.canvas;
+        if (paddedSrc) srcOut = paddedSrc.canvas;
+        dbg(`留白缩放 #${index}`, {
+          sidePad,
+          scale: padded?.scale,
+          opaqueW: padded?.opaqueW,
+        });
+      }
 
       item.resultCanvas = out;
       item.sourceCanvas = srcOut;
@@ -1149,7 +1228,7 @@ export async function confirmPortraitCrop() {
       item.processed = true;
       item.eraseMask = null;
       done++;
-      dbg(`已裁切 #${index}`, { size: `${out.width}x${out.height}` });
+      dbg(`已裁切 #${index}`, { size: `${out.width}x${out.height}`, sidePad });
     } catch (err) {
       console.error("[立绘裁剪] 确认失败", index, err);
     }
@@ -1165,7 +1244,81 @@ export async function confirmPortraitCrop() {
   }
   hooks?.onApplied?.();
   syncPortraitOverlay();
-  setStatus(`已裁切 ${done} 张 · 统一为例图尺寸 ${targetW}×${targetH} · 头顶边距对齐`);
+  setStatus(
+    `已裁切 ${done} 张 · ${targetW}×${targetH}`
+    + (sidePad > 0 ? ` · 两侧留白 ${sidePad}px（底中心缩放）` : " · 头顶边距对齐"),
+  );
+}
+
+/**
+ * 对已对齐例图尺寸的选中帧（不含例图）按当前留白参数再缩放。
+ */
+export async function applyPortraitSidePad() {
+  const sidePad = readSidePadPx();
+  const example = exampleItem();
+  const exampleSrc = example ? resolvePortraitSource(example) : null;
+  if (!exampleSrc) {
+    setStatus("例图不可用");
+    return;
+  }
+  const targetW = exampleSrc.width;
+  const targetH = exampleSrc.height;
+
+  const targets = state.items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item, index }) => {
+      if (index === 0) return false;
+      if (item.selected === false) return false;
+      const src = resolvePortraitSource(item);
+      return Boolean(src && src.width === targetW && src.height === targetH);
+    });
+
+  if (!targets.length) {
+    setStatus("没有可缩放的帧（需已确认裁剪为例图尺寸，且已勾选）");
+    return;
+  }
+
+  hooks?.pushHistory?.("立绘两侧留白", targets.map((t) => t.item));
+
+  let done = 0;
+  for (const { item, index } of targets) {
+    try {
+      const src = resolvePortraitSource(item);
+      if (!src) continue;
+      const padded = applySidePadToCanvas(src, sidePad);
+      if (!padded) continue;
+      const paddedSource = applySidePadToCanvas(item.sourceCanvas, sidePad);
+      if (!paddedSource) continue;
+
+      item.resultCanvas = padded.canvas;
+      item.sourceCanvas = paddedSource.canvas;
+      item.width = padded.canvas.width;
+      item.height = padded.canvas.height;
+      item.processed = true;
+      item.eraseMask = null;
+      done++;
+      dbg(`两侧留白 #${index}`, {
+        sidePad,
+        scale: padded.scale,
+        opaqueW: padded.opaqueW,
+      });
+    } catch (err) {
+      console.error("[立绘裁剪] 留白缩放失败", index, err);
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  if (targets[0]) {
+    state.currentFrame = targets[0].index;
+    state.selectedId = targets[0].item.id;
+  }
+  hooks?.onApplied?.();
+  syncPortraitOverlay();
+  setStatus(
+    sidePad > 0
+      ? `已对 ${done} 张应用两侧留白 ${sidePad}px（底中心缩放）`
+      : `留白为 0，已按原身宽对齐处理 ${done} 张`,
+  );
 }
 
 /**
@@ -1224,6 +1377,18 @@ export function initPortraitCrop(h) {
       });
     });
   }
+
+  const sidePadRange = /** @type {HTMLInputElement | null} */ ($("#portraitSidePad"));
+  sidePadRange?.addEventListener("input", syncSidePadUI);
+  syncSidePadUI();
+
+  $("#portraitSidePadApply")?.addEventListener("click", () => {
+    setStatus("两侧留白缩放中…");
+    void applyPortraitSidePad().catch((err) => {
+      console.error("[立绘裁剪] 留白缩放异常", err);
+      setStatus("留白缩放失败：看控制台日志");
+    });
+  });
 
   if (!layer) {
     dbg("警告：#portraitLayer 不存在，裁剪线不可用，但批量按钮仍应可用");

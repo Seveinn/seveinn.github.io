@@ -202,8 +202,13 @@
             </div>
             <button type="button" class="primary" id="portraitApply" style="width:100%">预览裁剪范围</button>
             <button type="button" class="accent" id="portraitConfirm" style="width:100%;margin-top:8px">确认裁剪（对齐例图）</button>
+            <div class="field" style="margin:10px 0 0">
+              <label for="portraitSidePad">两侧留白 <output id="portraitSidePadOut">48</output>px</label>
+              <input type="range" id="portraitSidePad" min="0" max="160" step="2" value="48" />
+            </div>
+            <button type="button" id="portraitSidePadApply" style="width:100%">应用两侧留白缩放</button>
             <p class="hint" style="margin:0;font-size:0.7rem;color:var(--muted);line-height:1.4">
-              预览按例图头宽缩放（肩宽口径与例图统一）；头顶边距对齐。不同角色头身比不同时，身宽占比可能略有差异。
+              确认裁剪后，以画幅底边中心为原点缩小立绘，使身体左右各留出设定像素；也可事后单独点「应用两侧留白缩放」。
             </p>
           </div>
         </div>
