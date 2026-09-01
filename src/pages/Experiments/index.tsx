@@ -15,6 +15,12 @@ interface Experiment {
 
 const experiments: Experiment[] = [
   {
+    id: 'image-flow',
+    title: 'ImageFlow · 节点式批量图片工坊',
+    description: '在无限画布上串联抠图、裁剪、格式转换与压缩节点，批量预览并导出图片。',
+    path: '/experiments/ImageFlow/index.html',
+  },
+  {
     id: 'story-node',
     title: 'StoryNode · 剧情节点生成器',
     description: '可视化互动剧情设计工具，支持节点编辑、画布漫游、AI 分支演算，以及剧情数据与完整剧本导出。',

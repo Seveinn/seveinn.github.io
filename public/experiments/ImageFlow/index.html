@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="在无限画布上用可编辑节点批量抠图、裁剪、缩放、压缩与转换图片格式。" />
+  <title>ImageFlow · 节点式批量图片工坊</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="brand-mark">IF</span><div><strong>ImageFlow</strong><small>节点式批量图片工坊</small></div></div>
+    <div class="toolbar">
+      <button id="add-node" class="primary">＋ 添加节点</button>
+      <button id="run-flow">▶ 运行工作流</button>
+      <button id="fit-view" title="适应全部节点">⌗ 适应画布</button>
+      <button id="clear-flow" class="quiet">重置示例</button>
+    </div>
+  </header>
+
+  <main id="workspace" aria-label="图片处理节点画布">
+    <div id="grid"></div>
+    <svg id="wires" aria-hidden="true"><g id="wire-layer"></g><path id="draft-wire" hidden></path></svg>
+    <div id="scene"></div>
+    <div class="canvas-tip">拖动画布 · 滚轮缩放 · 拖动端口连接</div>
+    <div class="zoom-control"><button id="zoom-out">−</button><output id="zoom-label">100%</output><button id="zoom-in">＋</button></div>
+  </main>
+
+  <aside id="inspector" class="inspector">
+    <div class="inspector-head"><div><small>NODE SETTINGS</small><h2 id="inspector-title">节点设置</h2></div><button id="close-inspector" aria-label="关闭">×</button></div>
+    <div id="inspector-body"></div>
+  </aside>
+
+  <div id="palette" class="palette" hidden>
+    <div class="palette-head"><strong>添加处理节点</strong><button id="close-palette">×</button></div>
+    <button data-type="input"><span class="node-icon dark">＋</span><div><strong>批量图片输入</strong><small>拖入或选择多张图片</small></div></button>
+    <button data-type="removebg"><span class="node-icon violet">✦</span><div><strong>智能抠图</strong><small>按边缘背景色批量移除</small></div></button>
+    <button data-type="resize"><span class="node-icon blue">↔</span><div><strong>尺寸 / 裁剪</strong><small>缩放、适应或居中裁剪</small></div></button>
+    <button data-type="format"><span class="node-icon amber">Aa</span><div><strong>格式转换</strong><small>PNG、JPEG、WebP</small></div></button>
+    <button data-type="compress"><span class="node-icon green">⇣</span><div><strong>图片压缩</strong><small>设置导出质量</small></div></button>
+    <button data-type="output"><span class="node-icon dark">↓</span><div><strong>批量输出</strong><small>预览并下载 ZIP</small></div></button>
+  </div>
+
+  <div id="connection-menu" class="connection-menu" hidden></div>
+
+  <div id="toast" role="status"></div>
+  <input id="file-input" type="file" accept="image/*" multiple hidden />
+  <script type="module" src="app.js"></script>
+</body>
+</html>
